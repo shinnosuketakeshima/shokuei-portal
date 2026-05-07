@@ -280,6 +280,8 @@ function GeneralWorksList() {
                 <th className="px-4 py-3 border-b border-slate-200">兼業名称</th>
                 <th className="px-4 py-3 border-b border-slate-200">兼業内容</th>
                 <th className="px-4 py-3 border-b border-slate-200">兼業期間</th>
+                <th className="px-4 py-3 border-b border-slate-200 whitespace-nowrap">勤務形態</th>
+                <th className="px-4 py-3 border-b border-slate-200">不定期内容</th>
                 <th className="px-3 py-3 border-b border-slate-200 w-12"></th>
               </tr>
             </thead>
@@ -302,6 +304,12 @@ function GeneralWorksList() {
                     {work.periodType === 'specific'
                       ? work.specificDates
                       : `${work.periodStart} 〜 ${work.periodEnd}`}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                    {work.workScheduleType === 'irregular' ? '不定期' : '定期'}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {work.workScheduleType === 'irregular' ? (work.irregularSchedule || '—') : '—'}
                   </td>
                   <td className="px-3 py-3">
                     <button onClick={() => handleDelete(work.id, work.name)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors" title="削除">
@@ -327,6 +335,8 @@ function ConcurrentWorkForm() {
     subjectName: '',
     term: '前期',
     periodType: 'range',
+    workScheduleType: 'regular',
+    irregularSchedule: '',
     specificDates: '',
     periodStart: '',
     periodEnd: '',
@@ -393,9 +403,13 @@ function ConcurrentWorkForm() {
           } else {
             reiwaPeriodStart = toReiwa(formData.periodStart);
             reiwaPeriodEnd = toReiwa(formData.periodEnd);
-            day = formData.dayOfWeek;
-            startTime = formData.startTime;
-            endTime = formData.endTime;
+            if (formData.workScheduleType === 'regular') {
+              day = formData.dayOfWeek;
+              startTime = formData.startTime;
+              endTime = formData.endTime;
+            } else {
+              specificDatesOut = formData.irregularSchedule;
+            }
           }
 
           // 担当時間の「○」付け変数
@@ -734,7 +748,7 @@ function GeneralConcurrentWorkForm() {
       setSubmitStatus('success');
       setFormData({
         department: '食物栄養学科', title: '', name: '', workplace: '', jobDescription: '', income: '',
-        periodType: 'range', specificDates: '', periodStart: '', periodEnd: '', dayOfWeek: '月', startTime: '', endTime: '',
+        periodType: 'range', workScheduleType: 'regular', irregularSchedule: '', specificDates: '', periodStart: '', periodEnd: '', dayOfWeek: '月', startTime: '', endTime: '',
         relationComment: '', noHinderanceComment: ''
       });
       setTimeout(() => setSubmitStatus(null), 5000);
@@ -837,24 +851,48 @@ function GeneralConcurrentWorkForm() {
                             className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-4 border-t border-slate-200 pt-4 mt-4">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">曜日</label>
-                          <select name="dayOfWeek" value={formData.dayOfWeek} onChange={handleChange} required={formData.periodType === 'range'}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white">
-                            {['月', '火', '水', '木', '金', '土', '日'].map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
+                      <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
+                        <label className="block text-xs font-bold text-slate-700">勤務形態</label>
+                        <div className="flex gap-6">
+                          <label className="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="workScheduleType" value="regular" checked={formData.workScheduleType === 'regular'} onChange={handleChange} className="text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                            <span className="ml-2 text-sm font-bold text-slate-700">定期（曜日・時間あり）</span>
+                          </label>
+                          <label className="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="workScheduleType" value="irregular" checked={formData.workScheduleType === 'irregular'} onChange={handleChange} className="text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                            <span className="ml-2 text-sm font-bold text-slate-700">不定期（例: 月2回）</span>
+                          </label>
                         </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">開始時間</label>
-                          <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} required={formData.periodType === 'range'}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">終了時間</label>
-                          <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} required={formData.periodType === 'range'}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-                        </div>
+                      </div>
+                      <div className="pt-2">
+                        {formData.workScheduleType === 'regular' ? (
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1.5">曜日</label>
+                              <select name="dayOfWeek" value={formData.dayOfWeek} onChange={handleChange} required={formData.periodType === 'range' && formData.workScheduleType === 'regular'}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white">
+                                {['月', '火', '水', '木', '金', '土', '日'].map(d => <option key={d} value={d}>{d}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1.5">開始時間</label>
+                              <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} required={formData.periodType === 'range' && formData.workScheduleType === 'regular'}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1.5">終了時間</label>
+                              <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} required={formData.periodType === 'range' && formData.workScheduleType === 'regular'}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">不定期の勤務頻度</label>
+                            <input type="text" name="irregularSchedule" value={formData.irregularSchedule} onChange={handleChange} placeholder="例: 月2回（日時は都度調整）" required={formData.periodType === 'range' && formData.workScheduleType === 'irregular'}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                            <p className="mt-1 text-xs text-slate-500">不定期を選択した場合、勤務時間の入力は不要です。</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
