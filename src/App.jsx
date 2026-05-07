@@ -658,6 +658,8 @@ function GeneralConcurrentWorkForm() {
     jobDescription: '',
     income: '',
     periodType: 'range',
+    workScheduleType: 'regular',
+    irregularSchedule: '',
     specificDates: '',
     periodStart: '',
     periodEnd: '',
@@ -719,9 +721,13 @@ function GeneralConcurrentWorkForm() {
           } else {
             reiwaPeriodStart = toReiwa(formData.periodStart);
             reiwaPeriodEnd = toReiwa(formData.periodEnd);
-            day = formData.dayOfWeek;
-            startTime = formData.startTime;
-            endTime = formData.endTime;
+            if (formData.workScheduleType === 'irregular') {
+              specificDatesOut = formData.irregularSchedule;
+            } else {
+              day = formData.dayOfWeek;
+              startTime = formData.startTime;
+              endTime = formData.endTime;
+            }
           }
 
           doc.render({
