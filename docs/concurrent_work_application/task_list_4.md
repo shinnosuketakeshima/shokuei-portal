@@ -1,0 +1,4 @@
+- `[ ]` `App.jsx` の `ConcurrentWorkForm` における曜日・時間の入力欄分割とWord出力ロジックの修正
+- `[ ]` `App.jsx` の `GeneralConcurrentWorkForm` における曜日・時間の入力欄分割とWord出力ロジックの修正
+- `[ ]` 複数日（特定の日付）用の大きなテキストエリアUIの実装
+- `[ ]` Firebase Hosting への再デプロイ

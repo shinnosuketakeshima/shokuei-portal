@@ -1,0 +1,5 @@
+- `[ ]` 新規フォーム `GeneralConcurrentWorkForm` の作成 (`src/App.jsx`)
+- `[ ]` `App.jsx` のダッシュボードとルーティングの更新
+- `[ ]` 既存の `ConcurrentWorkForm` の保存データに `type: 'part-time'` を付与するように修正
+- `[ ]` `ConcurrentWorksList`（申請一覧）に「申請種別」の列を追加し、どちらの申請かわかるようにする
+- `[ ]` `src/27.学外兼務承認申請書.docx` を `public/template-general.docx` としてコピー
