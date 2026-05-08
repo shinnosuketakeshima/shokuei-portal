@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
-import { Home, Users, FileText, Settings, Bell, Search, LayoutDashboard, ExternalLink, FolderKanban, Calendar, FileEdit, CheckCircle2, Megaphone, Trash2, Printer } from 'lucide-react';
+import { Home, Users, FileText, Settings, Bell, Search, LayoutDashboard, ExternalLink, FolderKanban, Calendar, FileEdit, CheckCircle2, Megaphone, Trash2, Printer, ClipboardList } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './firebase';
 import PizZip from 'pizzip';
@@ -947,6 +947,17 @@ function Dashboard() {
           </div>
         </div>
 
+        {/* 助手室への依頼（Excel） */}
+        <a href="https://jumonjiuac-my.sharepoint.com/:x:/g/personal/takesima_jumonji-u_ac_jp/EepA_hVf391MqrXW52mLjlABtqVZccddpHT6IVgDjVgOdQ?e=IgKTDz" target="_blank" rel="noopener noreferrer" className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-emerald-400 hover:-translate-y-1 hover:bg-emerald-50/50 transition-all duration-200 flex items-center gap-4 text-left">
+          <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 group-hover:scale-110 group-hover:bg-emerald-100 transition-all duration-200 shrink-0">
+            <ClipboardList className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">助手室への依頼（Excel）</h3>
+            <p className="text-xs text-rose-600 font-bold mt-1">※発注は1週間前まで</p>
+          </div>
+        </a>
+
         {/* 公式ホームページ CMS */}
         <a href="https://jumonji-u-artis-cms3.com/main/cms-admin/" target="_blank" rel="noopener noreferrer" className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all flex flex-col gap-3 md:col-span-3">
           <div className="flex items-center gap-4">
@@ -1041,7 +1052,6 @@ function Dashboard() {
             <p className="text-xs text-slate-500 mt-1">印刷業務依頼・機器使用願い</p>
           </div>
         </button>
-
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1051,17 +1061,16 @@ function Dashboard() {
             <Calendar className="w-5 h-5 text-blue-200" />
             <h3 className="text-base font-bold">学科スケジュール</h3>
           </div>
-          <div className="flex-1 bg-slate-50 relative p-4">
-            {/* Googleカレンダーiframe用のプレースホルダー */}
-            <div className="w-full h-full border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center text-slate-400 gap-4 hover:bg-slate-50 transition-colors">
-              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-300">
-                <Calendar className="w-8 h-8" />
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-slate-600 mb-1">Googleカレンダー プレースホルダー</p>
-                <p className="text-sm text-slate-400">※ ここにiframeを埋め込みます</p>
-              </div>
-            </div>
+          <div className="flex-1 bg-white relative">
+            <iframe 
+              src="https://calendar.google.com/calendar/embed?src=fbd2b7e3a87857ecb7a52e6cb8fbf177a00226876ceb0ec7a1aaee356f47aef6%40group.calendar.google.com&ctz=Asia%2FTokyo" 
+              style={{ border: 0 }} 
+              width="100%" 
+              height="100%" 
+              frameBorder="0" 
+              scrolling="no"
+              className="rounded-b-xl"
+            ></iframe>
           </div>
         </div>
 
