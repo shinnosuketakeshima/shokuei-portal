@@ -970,7 +970,7 @@ function Dashboard() {
         </a>
 
         {/* 公式ホームページ CMS */}
-        <a href="https://jumonji-u-artis-cms3.com/main/cms-admin/" target="_blank" rel="noopener noreferrer" className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all flex flex-col gap-3 md:col-span-3">
+        <a href="https://jumonji-u.artis-cms02.jp/main/cms-admin/" target="_blank" rel="noopener noreferrer" className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all flex flex-col gap-3 md:col-span-3">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:scale-105 transition-transform shrink-0">
               <ExternalLink className="w-6 h-6" />
