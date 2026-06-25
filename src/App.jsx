@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
-import { Home, Users, FileText, Settings, Bell, Search, LayoutDashboard, ExternalLink, FolderKanban, Calendar, FileEdit, CheckCircle2, Megaphone, Trash2, Printer, ClipboardList, Globe } from 'lucide-react';
+import { Home, Users, FileText, Settings, Bell, Search, LayoutDashboard, ExternalLink, FolderKanban, Calendar, FileEdit, CheckCircle2, Megaphone, Trash2, Printer, ClipboardList, Globe, MessageCircle } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './firebase';
 import PizZip from 'pizzip';
@@ -966,6 +966,17 @@ function Dashboard() {
           <div>
             <h3 className="text-base font-bold text-slate-800 group-hover:text-sky-700 transition-colors">学科非公式ホームページ</h3>
             <p className="text-xs text-slate-500 mt-1">shokuei-hp.web.app を開く</p>
+          </div>
+        </a>
+
+        {/* LINE国試ボット 質問掲示板 */}
+        <a href="https://kanri-chatbot.web.app/" target="_blank" rel="noopener noreferrer" className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-green-400 hover:-translate-y-1 hover:bg-green-50/50 transition-all duration-200 flex items-center gap-4 text-left">
+          <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600 group-hover:scale-110 group-hover:bg-green-100 transition-all duration-200 shrink-0">
+            <MessageCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-800 group-hover:text-green-700 transition-colors">LINE国試ボット 質問掲示板</h3>
+            <p className="text-xs text-slate-500 mt-1">学生からの国試に関する質問を確認</p>
           </div>
         </a>
 
