@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
 import { Home, Users, FileText, Settings, Bell, Search, LayoutDashboard, ExternalLink, FolderKanban, Calendar, FileEdit, CheckCircle2, Megaphone, Trash2, Printer, ClipboardList, Globe, MessageCircle } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import { db } from './firebase';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { db, auth } from './firebase';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
@@ -994,18 +995,7 @@ function Dashboard() {
               <p className="text-xs text-slate-500 mt-0.5">CMS管理画面を開く</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <p className="text-[10px] font-bold text-slate-500 mb-1.5">【CMS ログイン】</p>
-              <div className="flex items-center gap-2 text-xs"><span className="text-slate-500 font-medium w-6">ID:</span><code className="select-all text-slate-800 font-bold">jumonji</code></div>
-              <div className="flex items-center gap-2 text-xs mt-1"><span className="text-slate-500 font-medium w-6">PW:</span><code className="select-all text-slate-800 font-bold">NYr5si_sedEp</code></div>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <p className="text-[10px] font-bold text-slate-500 mb-1.5">【第2パスワード】</p>
-              <div className="flex items-center gap-2 text-xs"><span className="text-slate-500 font-medium w-6">ID:</span><code className="select-all text-slate-800 font-bold">syokuei</code></div>
-              <div className="flex items-center gap-2 text-xs mt-1"><span className="text-slate-500 font-medium w-6">PW:</span><code className="select-all text-slate-800 font-bold">0805pswd</code></div>
-            </div>
-          </div>
+          {/* 認証情報はセキュリティ上ここに表示しない（公開サイト・公開リポジトリのため）。別途安全な手段で共有すること。 */}
         </a>
 
         {/* 広報課 情報提供フォーム */}
@@ -1106,6 +1096,74 @@ function Dashboard() {
   );
 }
 
+// 申請一覧（個人情報を含む）の閲覧・削除を保護する管理者ログインゲート。
+// 未ログインではログインフォームを表示し、一覧データの取得を一切行わない（フェイルクローズ）。
+function AdminGate({ children }) {
+  const [user, setUser] = useState(null);
+  const [initializing, setInitializing] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setInitializing(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+    } catch {
+      setError('メールアドレスまたはパスワードが正しくありません。');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (initializing) {
+    return <div className="p-8 text-center text-slate-500">認証を確認中...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-sm mx-auto mt-8 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 className="text-base font-bold text-blue-900 mb-1">管理者ログイン</h3>
+        <p className="text-xs text-slate-500 mb-4">申請一覧の閲覧には教員（管理者）ログインが必要です。</p>
+        <form onSubmit={handleLogin} className="flex flex-col gap-3">
+          <input type="email" autoComplete="username" required value={email}
+            onChange={(e) => setEmail(e.target.value)} placeholder="メールアドレス"
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <input type="password" autoComplete="current-password" required value={password}
+            onChange={(e) => setPassword(e.target.value)} placeholder="パスワード"
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <button type="submit" disabled={submitting}
+            className="bg-blue-900 text-white rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50">
+            {submitting ? 'ログイン中...' : 'ログイン'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="mb-3 flex items-center justify-end gap-2 text-xs text-slate-500">
+        <span>{user.email}</span>
+        <button onClick={() => signOut(auth)} className="text-blue-600 hover:text-blue-800 font-medium">ログアウト</button>
+      </div>
+      <div className="flex-1 min-h-0">{children}</div>
+    </div>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -1124,7 +1182,9 @@ function App() {
                     <Link to="/" className="text-sm text-blue-600 hover:text-blue-800 font-medium">← ダッシュボードへ戻る</Link>
                   </div>
                   <div className="flex-1 min-h-0">
-                    <ConcurrentWorksList />
+                    <AdminGate>
+                      <ConcurrentWorksList />
+                    </AdminGate>
                   </div>
                 </div>
               } />
@@ -1135,7 +1195,9 @@ function App() {
                     <Link to="/" className="text-sm text-blue-600 hover:text-blue-800 font-medium">← ダッシュボードへ戻る</Link>
                   </div>
                   <div className="flex-1 min-h-0">
-                    <GeneralWorksList />
+                    <AdminGate>
+                      <GeneralWorksList />
+                    </AdminGate>
                   </div>
                 </div>
               } />

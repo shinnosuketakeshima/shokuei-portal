@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
@@ -16,6 +17,7 @@ const firebaseConfig = {
 // Initialize Firebase (HMR対応)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
+export const auth = getAuth(app);
 
 // Analyticsは対応ブラウザのみ初期化（アドブロッカー等によるエラーを防止）
 export let analytics = null;
