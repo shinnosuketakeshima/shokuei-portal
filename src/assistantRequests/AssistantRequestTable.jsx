@@ -7,7 +7,21 @@ const STATUS_STYLES = {
   '完了': 'bg-emerald-100 text-emerald-800'
 };
 
-export default function AssistantRequestTable({ requests, onRowClick, onDelete }) {
+const COLUMNS = [
+  { key: 'no', label: 'No', nowrap: true },
+  { key: 'requestDate', label: '依頼日', nowrap: true },
+  { key: 'requester', label: '依頼者', nowrap: true },
+  { key: 'category', label: '依頼内容', nowrap: true },
+  { key: 'detail', label: '依頼詳細', nowrap: false },
+  { key: 'deadline', label: '締切日', nowrap: true },
+  { key: 'status', label: '受託状況', nowrap: true },
+  { key: 'assignee', label: '担当者', nowrap: true },
+  { key: 'completedDate', label: '完了日', nowrap: true },
+  { key: 'duration', label: '所要時間', nowrap: true },
+  { key: 'notes', label: '備考', nowrap: false }
+];
+
+export default function AssistantRequestTable({ requests, onRowClick, onDelete, sortKey, sortDirection, onSort }) {
   if (requests.length === 0) {
     return <div className="p-8 text-center text-slate-500">この年度の依頼はまだありません。</div>;
   }
@@ -16,17 +30,15 @@ export default function AssistantRequestTable({ requests, onRowClick, onDelete }
     <table className="w-full text-sm text-left">
       <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0">
         <tr>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">No</th>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">依頼日</th>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">依頼者</th>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">依頼内容</th>
-          <th className="px-3 py-3 border-b border-slate-200">依頼詳細</th>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">締切日</th>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">受託状況</th>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">担当者</th>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">完了日</th>
-          <th className="px-3 py-3 border-b border-slate-200 whitespace-nowrap">所要時間</th>
-          <th className="px-3 py-3 border-b border-slate-200">備考</th>
+          {COLUMNS.map((col) => (
+            <th
+              key={col.key}
+              onClick={() => onSort(col.key)}
+              className={`px-3 py-3 border-b border-slate-200 cursor-pointer select-none hover:bg-slate-200 transition-colors ${col.nowrap ? 'whitespace-nowrap' : ''}`}
+            >
+              {col.label}{sortKey === col.key ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+            </th>
+          ))}
           <th className="px-3 py-3 border-b border-slate-200 w-10"></th>
         </tr>
       </thead>
