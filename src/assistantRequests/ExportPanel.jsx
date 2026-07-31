@@ -14,6 +14,7 @@ export default function ExportPanel({ requests, fiscalYear }) {
   const [open, setOpen] = useState(false);
   const [filters, setFilters] = useState(emptyFilters());
   const [isExporting, setIsExporting] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -24,11 +25,12 @@ export default function ExportPanel({ requests, fiscalYear }) {
     if (filters.startDate && r.requestDate < filters.startDate) return false;
     if (filters.endDate && r.requestDate > filters.endDate) return false;
     if (filters.status && r.status !== filters.status) return false;
-    if (filters.assignee && !r.assignee.includes(filters.assignee)) return false;
+    if (filters.assignee && !(r.assignee ?? '').includes(filters.assignee)) return false;
     return true;
   });
 
   const handleExport = async () => {
+    setError(null);
     setIsExporting(true);
     try {
       const filtered = applyFilters(requests);
@@ -37,6 +39,9 @@ export default function ExportPanel({ requests, fiscalYear }) {
       saveAs(blob, `事務補佐依頼一覧_${fiscalYearLabel(fiscalYear)}.xlsx`);
       setOpen(false);
       setFilters(emptyFilters());
+    } catch (err) {
+      console.error('Error exporting assistant requests:', err);
+      setError('エクスポートに失敗しました。');
     } finally {
       setIsExporting(false);
     }
@@ -54,6 +59,7 @@ export default function ExportPanel({ requests, fiscalYear }) {
 
   return (
     <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-3">
+      {error && <p className="text-rose-600 text-sm bg-rose-50 p-2 rounded-md">{error}</p>}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 mb-1">依頼日（開始）</label>

@@ -12,9 +12,13 @@ export function fiscalYearLabel(fiscalYear) {
   return `令和${fiscalYear}年度`;
 }
 
-export function currentFiscalYear(now = new Date()) {
+export function todayString(now = new Date()) {
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
-  return dateStringToFiscalYear(`${yyyy}-${mm}-${dd}`);
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export function currentFiscalYear(now = new Date()) {
+  return dateStringToFiscalYear(todayString(now));
 }

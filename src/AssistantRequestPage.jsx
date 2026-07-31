@@ -44,44 +44,53 @@ export default function AssistantRequestPage() {
   );
 
   const handleAdd = async (formValues) => {
+    setError(null);
     try {
-      const newRequest = await addAssistantRequest(formValues, requests);
-      setRequests((prev) => [...prev, newRequest]);
+      const freshRequests = await fetchAllAssistantRequests();
+      const newRequest = await addAssistantRequest(formValues, freshRequests);
+      const updatedRequests = await fetchAllAssistantRequests();
+      setRequests(updatedRequests);
       setSelectedFiscalYear(newRequest.fiscalYear);
     } catch (err) {
       console.error('Error adding assistant request:', err);
       setError('依頼の登録に失敗しました。');
+      throw err;
     }
   };
 
   const handleSaveEdit = async (fields) => {
+    setError(null);
     try {
       await updateAssistantRequest(editingRequest.id, fields);
-      setRequests((prev) => prev.map((r) => (r.id === editingRequest.id ? { ...r, ...fields } : r)));
+      const updatedRequests = await fetchAllAssistantRequests();
+      setRequests(updatedRequests);
     } catch (err) {
       console.error('Error updating assistant request:', err);
       setError('依頼の更新に失敗しました。');
+      throw err;
     }
   };
 
   const handleDelete = async (id, no) => {
     if (!window.confirm(`No.${no} の依頼を削除します。よろしいですか？`)) return;
+    setError(null);
     try {
       await deleteAssistantRequest(id);
-      setRequests((prev) => prev.filter((r) => r.id !== id));
+      const updatedRequests = await fetchAllAssistantRequests();
+      setRequests(updatedRequests);
     } catch (err) {
       console.error('Error deleting assistant request:', err);
-      alert('削除に失敗しました。');
+      setError('削除に失敗しました。');
     }
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
       <div className="p-5 border-b border-slate-100 bg-blue-900 flex items-center gap-2 text-white">
         <FolderKanban className="w-5 h-5 text-blue-200" />
         <h3 className="text-base font-bold">事務補佐依頼一覧</h3>
       </div>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 flex-1 min-h-0 flex flex-col">
         {error && <p className="text-rose-600 text-sm bg-rose-50 p-2 rounded-md">{error}</p>}
 
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
@@ -105,7 +114,7 @@ export default function AssistantRequestPage() {
         {loading ? (
           <div className="p-8 text-center text-slate-500">読み込み中...</div>
         ) : (
-          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+          <div className="flex-1 min-h-0 overflow-auto border border-slate-200 rounded-lg">
             <AssistantRequestTable requests={visibleRequests} onRowClick={setEditingRequest} onDelete={handleDelete} />
           </div>
         )}

@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import { FileEdit } from 'lucide-react';
 import { CATEGORIES } from './constants.js';
-
-function todayString() {
-  const now = new Date();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${mm}-${dd}`;
-}
+import { todayString } from './fiscalYear.js';
 
 function emptyForm() {
   return {
@@ -36,6 +30,8 @@ export default function AssistantRequestForm({ onSubmit }) {
       await onSubmit(formData);
       setFormData(emptyForm());
       setOpen(false);
+    } catch {
+      // keep form open with entered data; parent already surfaced the error
     } finally {
       setIsSubmitting(false);
     }

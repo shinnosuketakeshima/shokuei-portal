@@ -1,6 +1,6 @@
 // src/assistantRequests/AssistantRequestEditModal.jsx
 import { useState } from 'react';
-import { CATEGORIES, STATUSES } from './constants';
+import { CATEGORIES, STATUSES } from './constants.js';
 
 export default function AssistantRequestEditModal({ request, onSave, onClose }) {
   const [formData, setFormData] = useState({
@@ -27,6 +27,8 @@ export default function AssistantRequestEditModal({ request, onSave, onClose }) 
     try {
       await onSave(formData);
       onClose();
+    } catch {
+      // keep modal open; parent already surfaced the error
     } finally {
       setIsSaving(false);
     }
