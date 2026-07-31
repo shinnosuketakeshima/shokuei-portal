@@ -21,9 +21,13 @@ const COLUMNS = [
   { key: 'notes', label: '備考', nowrap: false }
 ];
 
-export default function AssistantRequestTable({ requests, onRowClick, onDelete, sortKey, sortDirection, onSort }) {
+export default function AssistantRequestTable({ requests, onRowClick, onDelete, sortKey, sortDirection, onSort, isFiltered }) {
   if (requests.length === 0) {
-    return <div className="p-8 text-center text-slate-500">この年度の依頼はまだありません。</div>;
+    return (
+      <div className="p-8 text-center text-slate-500">
+        {isFiltered ? '条件に一致する依頼はありません。' : 'この年度の依頼はまだありません。'}
+      </div>
+    );
   }
 
   return (

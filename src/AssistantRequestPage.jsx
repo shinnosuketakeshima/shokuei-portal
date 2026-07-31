@@ -52,6 +52,8 @@ export default function AssistantRequestPage() {
     return sortRequests(filtered, sortKey, sortDirection);
   }, [requests, selectedFiscalYear, filters, sortKey, sortDirection]);
 
+  const isFiltered = Object.values(filters).some(Boolean);
+
   const handleAdd = async (formValues) => {
     setError(null);
     try {
@@ -151,6 +153,7 @@ export default function AssistantRequestPage() {
           onFilterChange={handleFilterChange}
           onExport={handleExport}
           isExporting={isExporting}
+          disabled={isExporting || loading || visibleRequests.length === 0}
         />
 
         {loading ? (
@@ -164,6 +167,7 @@ export default function AssistantRequestPage() {
               sortKey={sortKey}
               sortDirection={sortDirection}
               onSort={handleSort}
+              isFiltered={isFiltered}
             />
           </div>
         )}

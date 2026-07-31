@@ -16,6 +16,7 @@ export function filterRequests(requests, filters) {
   return requests.filter((r) => {
     if (filters.requestDateStart && r.requestDate < filters.requestDateStart) return false;
     if (filters.requestDateEnd && r.requestDate > filters.requestDateEnd) return false;
+    if ((filters.deadlineStart || filters.deadlineEnd) && !r.deadline) return false;
     if (filters.deadlineStart && r.deadline < filters.deadlineStart) return false;
     if (filters.deadlineEnd && r.deadline > filters.deadlineEnd) return false;
     if (filters.status && r.status !== filters.status) return false;

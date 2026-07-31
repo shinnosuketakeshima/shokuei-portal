@@ -2,7 +2,7 @@
 import { Download } from 'lucide-react';
 import { STATUSES, CATEGORIES } from './constants.js';
 
-export default function AssistantRequestFilterBar({ filters, onFilterChange, onExport, isExporting }) {
+export default function AssistantRequestFilterBar({ filters, onFilterChange, onExport, isExporting, disabled = isExporting }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     onFilterChange(name, value);
@@ -64,7 +64,7 @@ export default function AssistantRequestFilterBar({ filters, onFilterChange, onE
         </div>
       </div>
       <div>
-        <button onClick={onExport} disabled={isExporting}
+        <button onClick={onExport} disabled={disabled}
           className="flex items-center gap-2 bg-blue-800 text-white py-1.5 px-4 rounded-lg text-sm font-bold hover:bg-blue-900 disabled:opacity-50 transition-colors">
           <Download className="w-4 h-4" />
           {isExporting ? '生成中...' : 'エクスポート'}

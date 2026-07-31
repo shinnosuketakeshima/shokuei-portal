@@ -1,3 +1,8 @@
+// Keep these two sets in sync with the COLUMNS list in AssistantRequestTable.jsx
+// (every sortable column key must be classified here) and, for the numeric/date
+// distinction specifically, with the corresponding field types in the Firestore
+// document shape — an unclassified field silently falls back to string comparison
+// instead of erroring.
 const NUMERIC_KEYS = new Set(['no']);
 const DATE_KEYS = new Set(['requestDate', 'deadline', 'completedDate']);
 
@@ -18,9 +23,10 @@ export function sortRequests(requests, sortKey, sortDirection) {
     const vb = b[sortKey];
     const aEmpty = isEmpty(va);
     const bEmpty = isEmpty(vb);
-    if (aEmpty && bEmpty) return 0;
+    if (aEmpty && bEmpty) return a.no - b.no;
     if (aEmpty) return 1;
     if (bEmpty) return -1;
-    return compareValues(va, vb, sortKey) * directionMultiplier;
+    const primary = compareValues(va, vb, sortKey) * directionMultiplier;
+    return primary !== 0 ? primary : a.no - b.no;
   });
 }
