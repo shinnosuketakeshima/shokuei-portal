@@ -1178,14 +1178,12 @@ function App() {
                 </div>
               } />
               <Route path="/assistant-requests" element={
-                <div className="p-8 max-w-6xl mx-auto h-full flex flex-col">
+                <div className="p-8 max-w-6xl mx-auto">
                   <div className="mb-6 flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-blue-900">事務補佐依頼一覧</h2>
                     <Link to="/" className="text-sm text-blue-600 hover:text-blue-800 font-medium">← ダッシュボードへ戻る</Link>
                   </div>
-                  <div className="flex-1 min-h-0">
-                    <AssistantRequestPage />
-                  </div>
+                  <AssistantRequestPage />
                 </div>
               } />
             </Routes>

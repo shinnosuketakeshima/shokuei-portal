@@ -124,12 +124,12 @@ export default function AssistantRequestPage() {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="p-5 border-b border-slate-100 bg-blue-900 flex items-center gap-2 text-white">
         <FolderKanban className="w-5 h-5 text-blue-200" />
         <h3 className="text-base font-bold">事務補佐依頼一覧</h3>
       </div>
-      <div className="p-6 space-y-6 flex-1 min-h-0 flex flex-col">
+      <div className="p-6 space-y-6">
         {error && <p className="text-rose-600 text-sm bg-rose-50 p-2 rounded-md">{error}</p>}
 
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
@@ -156,10 +156,15 @@ export default function AssistantRequestPage() {
           disabled={isExporting || loading || visibleRequests.length === 0}
         />
 
+        {/*
+          一覧は自前の高さ・スクロールを持つ。ページ全体を画面高さに押し込む
+          （h-full + flex-1 min-h-0）方式だと、上のフィルタバーが伸びた分だけ
+          ここの高さが 0 に潰れて表が見えなくなるため、max-h で持たせている。
+        */}
         {loading ? (
           <div className="p-8 text-center text-slate-500">読み込み中...</div>
         ) : (
-          <div className="flex-1 min-h-0 overflow-auto border border-slate-200 rounded-lg">
+          <div className="max-h-[70vh] min-h-[16rem] overflow-auto border border-slate-200 rounded-lg">
             <AssistantRequestTable
               requests={visibleRequests}
               onRowClick={setEditingRequest}
