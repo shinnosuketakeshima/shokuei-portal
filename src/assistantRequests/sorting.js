@@ -1,6 +1,6 @@
 import { STATUSES } from './constants.js';
 
-// Keep these sets/maps in sync with the COLUMNS list in AssistantRequestTable.jsx
+// Keep these sets/maps in sync with the COLUMNS list in constants.js
 // (every sortable column key must be classified here) and, for the numeric/date
 // distinction specifically, with the corresponding field types in the Firestore
 // document shape — an unclassified field silently falls back to string comparison

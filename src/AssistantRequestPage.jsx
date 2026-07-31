@@ -99,6 +99,7 @@ export default function AssistantRequestPage() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  // 表のヘッダークリック用。同じ列なら方向をトグル、別の列なら昇順から。
   const handleSort = (key) => {
     if (sortKey === key) {
       setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -106,6 +107,12 @@ export default function AssistantRequestPage() {
       setSortKey(key);
       setSortDirection('asc');
     }
+  };
+
+  // フィルタバーのプルダウン用。項目と方向を直接指定する。
+  const handleSortChange = (key, direction) => {
+    setSortKey(key);
+    setSortDirection(direction);
   };
 
   const handleExport = async () => {
@@ -151,6 +158,9 @@ export default function AssistantRequestPage() {
         <AssistantRequestFilterBar
           filters={filters}
           onFilterChange={handleFilterChange}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSortChange={handleSortChange}
           onExport={handleExport}
           isExporting={isExporting}
           disabled={isExporting || loading || visibleRequests.length === 0}

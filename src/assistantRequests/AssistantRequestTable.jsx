@@ -1,25 +1,12 @@
 // src/assistantRequests/AssistantRequestTable.jsx
 import { Trash2 } from 'lucide-react';
+import { COLUMNS } from './constants.js';
 
 const STATUS_STYLES = {
   '未対応': 'bg-slate-100 text-slate-600',
   '受託中': 'bg-amber-100 text-amber-800',
   '完了': 'bg-emerald-100 text-emerald-800'
 };
-
-const COLUMNS = [
-  { key: 'no', label: 'No', nowrap: true },
-  { key: 'requestDate', label: '依頼日', nowrap: true },
-  { key: 'requester', label: '依頼者', nowrap: true },
-  { key: 'category', label: '依頼内容', nowrap: true },
-  { key: 'detail', label: '依頼詳細', nowrap: false },
-  { key: 'deadline', label: '締切日', nowrap: true },
-  { key: 'status', label: '受託状況', nowrap: true },
-  { key: 'assignee', label: '担当者', nowrap: true },
-  { key: 'completedDate', label: '完了日', nowrap: true },
-  { key: 'duration', label: '所要時間', nowrap: true },
-  { key: 'notes', label: '備考', nowrap: false }
-];
 
 export default function AssistantRequestTable({ requests, onRowClick, onDelete, sortKey, sortDirection, onSort, isFiltered }) {
   if (requests.length === 0) {
@@ -34,15 +21,23 @@ export default function AssistantRequestTable({ requests, onRowClick, onDelete, 
     <table className="w-full text-sm text-left">
       <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0">
         <tr>
-          {COLUMNS.map((col) => (
-            <th
-              key={col.key}
-              onClick={() => onSort(col.key)}
-              className={`px-3 py-3 border-b border-slate-200 cursor-pointer select-none hover:bg-slate-200 transition-colors ${col.nowrap ? 'whitespace-nowrap' : ''}`}
-            >
-              {col.label}{sortKey === col.key ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-            </th>
-          ))}
+          {COLUMNS.map((col) => {
+            const active = sortKey === col.key;
+            return (
+              <th
+                key={col.key}
+                onClick={() => onSort(col.key)}
+                title={`クリックで「${col.label}」の昇順・降順を切り替え`}
+                className={`px-3 py-3 border-b border-slate-200 cursor-pointer select-none hover:bg-slate-200 transition-colors ${col.nowrap ? 'whitespace-nowrap' : ''}`}
+              >
+                {col.label}
+                {/* 未ソートの列にも薄い⇅を出し、クリックで並び替えできることを示す */}
+                <span className={active ? 'text-blue-700' : 'text-slate-400'}>
+                  {active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                </span>
+              </th>
+            );
+          })}
           <th className="px-3 py-3 border-b border-slate-200 w-10"></th>
         </tr>
       </thead>
