@@ -59,7 +59,7 @@ export default function AssistantRequestTable({ requests, onRowClick, onDelete, 
             <td className="px-3 py-2 max-w-xs truncate">{r.notes}</td>
             <td className="px-3 py-2">
               <button
-                onClick={(e) => { e.stopPropagation(); onDelete(r.id, r.no); }}
+                onClick={(e) => { e.stopPropagation(); onDelete(r); }}
                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
                 title="削除"
               >

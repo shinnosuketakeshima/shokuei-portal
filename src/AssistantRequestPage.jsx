@@ -15,6 +15,7 @@ import { buildAssistantRequestWorkbook } from './assistantRequests/exportXlsx.js
 import AssistantRequestForm from './assistantRequests/AssistantRequestForm';
 import AssistantRequestTable from './assistantRequests/AssistantRequestTable';
 import AssistantRequestEditModal from './assistantRequests/AssistantRequestEditModal';
+import AssistantRequestDeleteDialog from './assistantRequests/AssistantRequestDeleteDialog';
 import AssistantRequestFilterBar from './assistantRequests/AssistantRequestFilterBar';
 
 export default function AssistantRequestPage() {
@@ -23,6 +24,8 @@ export default function AssistantRequestPage() {
   const [error, setError] = useState(null);
   const [selectedFiscalYear, setSelectedFiscalYear] = useState(currentFiscalYear());
   const [editingRequest, setEditingRequest] = useState(null);
+  const [deletingRequest, setDeletingRequest] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [filters, setFilters] = useState(emptyFilters());
   const [sortKey, setSortKey] = useState('no');
   const [sortDirection, setSortDirection] = useState('asc');
@@ -94,15 +97,18 @@ export default function AssistantRequestPage() {
     await refreshRequests();
   };
 
-  const handleDelete = async (id, no) => {
-    if (!window.confirm(`No.${no} の依頼を削除します。よろしいですか？`)) return;
+  const handleConfirmDelete = async () => {
     setError(null);
+    setIsDeleting(true);
     try {
-      await deleteAssistantRequest(id);
+      await deleteAssistantRequest(deletingRequest.id);
     } catch (err) {
       console.error('Error deleting assistant request:', err);
       setError('削除に失敗しました。');
       return;
+    } finally {
+      setIsDeleting(false);
+      setDeletingRequest(null);
     }
     await refreshRequests();
   };
@@ -190,7 +196,7 @@ export default function AssistantRequestPage() {
             <AssistantRequestTable
               requests={visibleRequests}
               onRowClick={setEditingRequest}
-              onDelete={handleDelete}
+              onDelete={setDeletingRequest}
               sortKey={sortKey}
               sortDirection={sortDirection}
               onSort={handleSort}
@@ -205,6 +211,15 @@ export default function AssistantRequestPage() {
           request={editingRequest}
           onSave={handleSaveEdit}
           onClose={() => setEditingRequest(null)}
+        />
+      )}
+
+      {deletingRequest && (
+        <AssistantRequestDeleteDialog
+          request={deletingRequest}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeletingRequest(null)}
+          isDeleting={isDeleting}
         />
       )}
     </div>
