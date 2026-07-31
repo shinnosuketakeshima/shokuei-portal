@@ -54,32 +54,44 @@ export default function AssistantRequestPage() {
 
   const isFiltered = Object.values(filters).some(Boolean);
 
+  // 書き込み成功後の一覧再取得。ここでの失敗は書き込み自体の失敗ではないので、
+  // 「失敗しました」とは言わず、例外も投げない（投げるとフォーム／モーダルが
+  // 開いたままになり、利用者が再送信して重複データを作ってしまうため）。
+  const refreshRequests = async () => {
+    try {
+      setRequests(await fetchAllAssistantRequests());
+    } catch (err) {
+      console.error('Error refreshing assistant requests:', err);
+      setError('処理は完了しましたが、一覧の再読み込みに失敗しました。ページを再読み込みしてください。');
+    }
+  };
+
   const handleAdd = async (formValues) => {
     setError(null);
+    let newRequest;
     try {
+      // 採番のため、書き込み直前に最新の一覧を取り直す。
       const freshRequests = await fetchAllAssistantRequests();
-      const newRequest = await addAssistantRequest(formValues, freshRequests);
-      const updatedRequests = await fetchAllAssistantRequests();
-      setRequests(updatedRequests);
-      setSelectedFiscalYear(newRequest.fiscalYear);
+      newRequest = await addAssistantRequest(formValues, freshRequests);
     } catch (err) {
       console.error('Error adding assistant request:', err);
       setError('依頼の登録に失敗しました。');
       throw err;
     }
+    setSelectedFiscalYear(newRequest.fiscalYear);
+    await refreshRequests();
   };
 
   const handleSaveEdit = async (fields) => {
     setError(null);
     try {
       await updateAssistantRequest(editingRequest.id, fields);
-      const updatedRequests = await fetchAllAssistantRequests();
-      setRequests(updatedRequests);
     } catch (err) {
       console.error('Error updating assistant request:', err);
       setError('依頼の更新に失敗しました。');
       throw err;
     }
+    await refreshRequests();
   };
 
   const handleDelete = async (id, no) => {
@@ -87,12 +99,12 @@ export default function AssistantRequestPage() {
     setError(null);
     try {
       await deleteAssistantRequest(id);
-      const updatedRequests = await fetchAllAssistantRequests();
-      setRequests(updatedRequests);
     } catch (err) {
       console.error('Error deleting assistant request:', err);
       setError('削除に失敗しました。');
+      return;
     }
+    await refreshRequests();
   };
 
   const handleFilterChange = (key, value) => {
