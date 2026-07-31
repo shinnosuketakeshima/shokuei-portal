@@ -7,11 +7,15 @@ import {
   updateAssistantRequest,
   deleteAssistantRequest
 } from './assistantRequests/firestoreHelpers.js';
+import { saveAs } from 'file-saver';
 import { currentFiscalYear, fiscalYearLabel } from './assistantRequests/fiscalYear.js';
+import { sortRequests } from './assistantRequests/sorting.js';
+import { filterRequests, emptyFilters } from './assistantRequests/filtering.js';
+import { buildAssistantRequestWorkbook } from './assistantRequests/exportXlsx.js';
 import AssistantRequestForm from './assistantRequests/AssistantRequestForm';
 import AssistantRequestTable from './assistantRequests/AssistantRequestTable';
 import AssistantRequestEditModal from './assistantRequests/AssistantRequestEditModal';
-import ExportPanel from './assistantRequests/ExportPanel';
+import AssistantRequestFilterBar from './assistantRequests/AssistantRequestFilterBar';
 
 export default function AssistantRequestPage() {
   const [requests, setRequests] = useState([]);
@@ -19,6 +23,10 @@ export default function AssistantRequestPage() {
   const [error, setError] = useState(null);
   const [selectedFiscalYear, setSelectedFiscalYear] = useState(currentFiscalYear());
   const [editingRequest, setEditingRequest] = useState(null);
+  const [filters, setFilters] = useState(emptyFilters());
+  const [sortKey, setSortKey] = useState('no');
+  const [sortDirection, setSortDirection] = useState('asc');
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,10 +46,11 @@ export default function AssistantRequestPage() {
     return [...years].sort((a, b) => b - a);
   }, [requests]);
 
-  const visibleRequests = useMemo(
-    () => requests.filter((r) => r.fiscalYear === selectedFiscalYear).sort((a, b) => a.no - b.no),
-    [requests, selectedFiscalYear]
-  );
+  const visibleRequests = useMemo(() => {
+    const forYear = requests.filter((r) => r.fiscalYear === selectedFiscalYear);
+    const filtered = filterRequests(forYear, filters);
+    return sortRequests(filtered, sortKey, sortDirection);
+  }, [requests, selectedFiscalYear, filters, sortKey, sortDirection]);
 
   const handleAdd = async (formValues) => {
     setError(null);
@@ -84,6 +93,34 @@ export default function AssistantRequestPage() {
     }
   };
 
+  const handleFilterChange = (key, value) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
+  const handleExport = async () => {
+    setError(null);
+    setIsExporting(true);
+    try {
+      const buffer = await buildAssistantRequestWorkbook(visibleRequests, selectedFiscalYear);
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, `事務補佐依頼一覧_${fiscalYearLabel(selectedFiscalYear)}.xlsx`);
+    } catch (err) {
+      console.error('Error exporting assistant requests:', err);
+      setError('エクスポートに失敗しました。');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
       <div className="p-5 border-b border-slate-100 bg-blue-900 flex items-center gap-2 text-white">
@@ -109,13 +146,25 @@ export default function AssistantRequestPage() {
 
         <AssistantRequestForm onSubmit={handleAdd} />
 
-        <ExportPanel requests={visibleRequests} fiscalYear={selectedFiscalYear} />
+        <AssistantRequestFilterBar
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onExport={handleExport}
+          isExporting={isExporting}
+        />
 
         {loading ? (
           <div className="p-8 text-center text-slate-500">読み込み中...</div>
         ) : (
           <div className="flex-1 min-h-0 overflow-auto border border-slate-200 rounded-lg">
-            <AssistantRequestTable requests={visibleRequests} onRowClick={setEditingRequest} onDelete={handleDelete} />
+            <AssistantRequestTable
+              requests={visibleRequests}
+              onRowClick={setEditingRequest}
+              onDelete={handleDelete}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+            />
           </div>
         )}
       </div>
