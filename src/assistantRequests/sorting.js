@@ -1,10 +1,15 @@
-// Keep these two sets in sync with the COLUMNS list in AssistantRequestTable.jsx
+import { STATUSES } from './constants.js';
+
+// Keep these sets/maps in sync with the COLUMNS list in AssistantRequestTable.jsx
 // (every sortable column key must be classified here) and, for the numeric/date
 // distinction specifically, with the corresponding field types in the Firestore
 // document shape — an unclassified field silently falls back to string comparison
 // instead of erroring.
 const NUMERIC_KEYS = new Set(['no']);
 const DATE_KEYS = new Set(['requestDate', 'deadline', 'completedDate']);
+// Fields sorted by workflow order rather than string order (e.g. 受託状況 should
+// sort 未対応→受託中→完了, not alphabetically).
+const ORDINAL_KEYS = { status: STATUSES };
 
 function isEmpty(value) {
   return value === '' || value === undefined || value === null;
@@ -13,6 +18,7 @@ function isEmpty(value) {
 function compareValues(va, vb, key) {
   if (NUMERIC_KEYS.has(key)) return va - vb;
   if (DATE_KEYS.has(key)) return va < vb ? -1 : va > vb ? 1 : 0;
+  if (key in ORDINAL_KEYS) return ORDINAL_KEYS[key].indexOf(va) - ORDINAL_KEYS[key].indexOf(vb);
   return String(va).localeCompare(String(vb), 'ja');
 }
 
