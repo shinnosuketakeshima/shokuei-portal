@@ -7,6 +7,7 @@ import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
 import PrinterForm from './PrinterForm';
+import AssistantRequestPage from './AssistantRequestPage';
 
 function Sidebar() {
   return (
@@ -37,6 +38,10 @@ function Sidebar() {
         <Link to="/general-list" className="flex items-center gap-3 px-4 py-3 text-blue-100 rounded-lg font-medium transition-colors hover:bg-blue-800/50 hover:text-white">
           <FolderKanban className="w-5 h-5 text-blue-300" />
           兼業一覧
+        </Link>
+        <Link to="/assistant-requests" className="flex items-center gap-3 px-4 py-3 text-blue-100 rounded-lg font-medium transition-colors hover:bg-blue-800/50 hover:text-white">
+          <FolderKanban className="w-5 h-5 text-blue-300" />
+          事務補佐依頼一覧
         </Link>
       </nav>
       <div className="p-4 border-t border-blue-800/50">
@@ -947,16 +952,16 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* 助手室への依頼（Excel） */}
-        <a href="https://jumonjiuac-my.sharepoint.com/:x:/g/personal/takesima_jumonji-u_ac_jp/EepA_hVf391MqrXW52mLjlABtqVZccddpHT6IVgDjVgOdQ?e=IgKTDz" target="_blank" rel="noopener noreferrer" className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-emerald-400 hover:-translate-y-1 hover:bg-emerald-50/50 transition-all duration-200 flex items-center gap-4 text-left">
+        {/* 事務補佐依頼一覧 */}
+        <button onClick={() => navigate('/assistant-requests')} className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-emerald-400 hover:-translate-y-1 hover:bg-emerald-50/50 transition-all duration-200 flex items-center gap-4 text-left">
           <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 group-hover:scale-110 group-hover:bg-emerald-100 transition-all duration-200 shrink-0">
             <ClipboardList className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">助手室への依頼（Excel）</h3>
-            <p className="text-xs text-rose-600 font-bold mt-1">※発注は1週間前まで</p>
+            <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">事務補佐依頼一覧</h3>
+            <p className="text-xs text-slate-500 mt-1">助手室への依頼をポータル上で登録・確認</p>
           </div>
-        </a>
+        </button>
 
         {/* 学科非公式ホームページ */}
         <a href="https://shokuei-hp.web.app" target="_blank" rel="noopener noreferrer" className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-sky-400 hover:-translate-y-1 hover:bg-sky-50/50 transition-all duration-200 flex items-center gap-4 text-left">
@@ -1169,6 +1174,17 @@ function App() {
                   </div>
                   <div className="h-auto min-h-[500px]">
                     <PrinterForm />
+                  </div>
+                </div>
+              } />
+              <Route path="/assistant-requests" element={
+                <div className="p-8 max-w-6xl mx-auto h-full flex flex-col">
+                  <div className="mb-6 flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-blue-900">事務補佐依頼一覧</h2>
+                    <Link to="/" className="text-sm text-blue-600 hover:text-blue-800 font-medium">← ダッシュボードへ戻る</Link>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <AssistantRequestPage />
                   </div>
                 </div>
               } />
