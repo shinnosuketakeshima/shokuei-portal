@@ -17,6 +17,7 @@ import AssistantRequestTable from './assistantRequests/AssistantRequestTable';
 import AssistantRequestEditModal from './assistantRequests/AssistantRequestEditModal';
 import AssistantRequestDeleteDialog from './assistantRequests/AssistantRequestDeleteDialog';
 import AssistantRequestFilterBar from './assistantRequests/AssistantRequestFilterBar';
+import AssigneeSummaryPanel from './assistantRequests/AssigneeSummaryPanel';
 
 export default function AssistantRequestPage() {
   const [requests, setRequests] = useState([]);
@@ -172,6 +173,13 @@ export default function AssistantRequestPage() {
         </div>
 
         <AssistantRequestForm onSubmit={handleAdd} />
+
+        {!loading && (
+          <AssigneeSummaryPanel
+            requests={requests}
+            fiscalYear={selectedFiscalYear}
+          />
+        )}
 
         <AssistantRequestFilterBar
           filters={filters}
