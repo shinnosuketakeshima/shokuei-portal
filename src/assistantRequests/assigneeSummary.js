@@ -7,6 +7,19 @@ const REIWA_EPOCH_YEAR = 2018;
 /** 担当者別集計から除外する名前（依頼者枠・非個人カウントなど） */
 const EXCLUDED_ASSIGNEE_NAMES = new Set(['九澤', '有期助手']);
 
+/** 担当者列の表示順（左→右）。未登録名は末尾に五十音順で追加 */
+const ASSIGNEE_DISPLAY_ORDER = [
+  '鈴木歩美',
+  '鈴木夏美',
+  '清原',
+  '寺西',
+  '中村',
+  '飯島',
+  '板倉',
+  '助手全員',
+];
+const ASSIGNEE_ORDER_INDEX = new Map(ASSIGNEE_DISPLAY_ORDER.map((name, i) => [name, i]));
+
 /** 令和年度 → その年度の西暦開始年（令和8 → 2026） */
 export function fiscalYearToCalendarStart(fiscalYear) {
   return fiscalYear + REIWA_EPOCH_YEAR;
@@ -87,7 +100,12 @@ export function buildAssigneeSummary(requests, { mode, fiscalYear, yearMonth, no
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
 
-  const names = [...counts.keys()].sort((a, b) => a.localeCompare(b, 'ja'));
+  const names = [...counts.keys()].sort((a, b) => {
+    const ia = ASSIGNEE_ORDER_INDEX.has(a) ? ASSIGNEE_ORDER_INDEX.get(a) : Infinity;
+    const ib = ASSIGNEE_ORDER_INDEX.has(b) ? ASSIGNEE_ORDER_INDEX.get(b) : Infinity;
+    if (ia !== ib) return ia - ib;
+    return a.localeCompare(b, 'ja');
+  });
   const totals = names.map((n) => counts.get(n));
 
   let divisor;
