@@ -4,6 +4,9 @@
 
 const REIWA_EPOCH_YEAR = 2018;
 
+/** 担当者別集計から除外する名前（依頼者枠・非個人カウントなど） */
+const EXCLUDED_ASSIGNEE_NAMES = new Set(['九澤', '有期助手']);
+
 /** 令和年度 → その年度の西暦開始年（令和8 → 2026） */
 export function fiscalYearToCalendarStart(fiscalYear) {
   return fiscalYear + REIWA_EPOCH_YEAR;
@@ -80,7 +83,7 @@ export function buildAssigneeSummary(requests, { mode, fiscalYear, yearMonth, no
   const counts = new Map();
   for (const r of scoped) {
     const name = (r.assignee ?? '').trim();
-    if (!name) continue;
+    if (!name || EXCLUDED_ASSIGNEE_NAMES.has(name)) continue;
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
 
