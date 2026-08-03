@@ -17,6 +17,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 助手室依頼台帳：共同編集のため認証なしで read/write（設計上の意図）
+    match /assistant_requests/{id} {
+      allow read, write: if true;
+    }
+
     // 上記以外はすべて拒否
     match /{document=**} {
       allow read, write: if false;
