@@ -56,8 +56,7 @@ export default function AssigneeSummaryPanel({ requests, fiscalYear }) {
         <div>
           <h4 className="text-sm font-bold text-slate-800">担当者別・依頼受託件数</h4>
           <p className="text-xs text-slate-500 mt-0.5">
-            日割り = 依頼合計 ÷ {summary.divisorLabel}
-            {mode === 'fiscalYear' ? '（4月〜当月の経過月数）' : '（その月の暦日数）'}
+            日割り = 依頼合計 ÷ 週あたり勤務日数（中村3日・飯島2日・板倉4日・ほか常勤5日）
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

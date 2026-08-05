@@ -1,6 +1,6 @@
 // src/assistantRequests/assigneeSummary.js
 // Sheet1 相当の担当者別集計。依頼合計 = 担当者名の件数、
-// 日割り = 合計 ÷ 期間の分割単位（年度=経過月数、月=その月の暦日数）。
+// 日割り = 合計 ÷ その人の週あたり勤務日数。
 
 const REIWA_EPOCH_YEAR = 2018;
 
@@ -20,6 +20,29 @@ const ASSIGNEE_DISPLAY_ORDER = [
 ];
 const ASSIGNEE_ORDER_INDEX = new Map(ASSIGNEE_DISPLAY_ORDER.map((name, i) => [name, i]));
 
+/** 非常勤など、週あたり勤務日数が 5 未満の担当者 */
+export const WORK_DAYS_BY_ASSIGNEE = {
+  中村: 3,
+  飯島: 2,
+  板倉: 4
+};
+
+export const DEFAULT_WORK_DAYS = 5;
+
+/**
+ * 担当者名から週あたり勤務日数を返す。
+ * 「中村先生」のように敬称が付いていても、先頭一致で非常勤設定を拾う。
+ */
+export function workDaysForAssignee(name) {
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) return DEFAULT_WORK_DAYS;
+  if (WORK_DAYS_BY_ASSIGNEE[trimmed] != null) return WORK_DAYS_BY_ASSIGNEE[trimmed];
+  for (const [key, days] of Object.entries(WORK_DAYS_BY_ASSIGNEE)) {
+    if (trimmed.startsWith(key)) return days;
+  }
+  return DEFAULT_WORK_DAYS;
+}
+
 /** 令和年度 → その年度の西暦開始年（令和8 → 2026） */
 export function fiscalYearToCalendarStart(fiscalYear) {
   return fiscalYear + REIWA_EPOCH_YEAR;
@@ -38,30 +61,6 @@ export function fiscalMonthOptions(fiscalYear) {
   return months;
 }
 
-function daysInMonth(year, month) {
-  return new Date(year, month, 0).getDate();
-}
-
-/**
- * 年度単位の日割り除数 = その年度のうち「集計対象となる月数」。
- * 進行中の年度は 4月〜当月、過去年度は 12。
- */
-export function fiscalYearDivisor(fiscalYear, now = new Date()) {
-  const startYear = fiscalYearToCalendarStart(fiscalYear);
-  const currentFy = (() => {
-    const y = now.getFullYear();
-    const m = now.getMonth() + 1;
-    return (m >= 4 ? y : y - 1) - REIWA_EPOCH_YEAR;
-  })();
-
-  if (fiscalYear < currentFy) return 12;
-  if (fiscalYear > currentFy) return 1;
-
-  const month = now.getMonth() + 1;
-  if (month >= 4) return month - 3; // 4→1 … 12→9
-  return month + 9; // 1→10, 2→11, 3→12
-}
-
 function requestYearMonth(requestDate) {
   if (!requestDate || typeof requestDate !== 'string') return null;
   const [y, m] = requestDate.split('-').map(Number);
@@ -73,7 +72,6 @@ function filterRequestsForPeriod(requests, mode, fiscalYear, yearMonth) {
   if (mode === 'fiscalYear') {
     return requests.filter((r) => r.fiscalYear === fiscalYear);
   }
-  // month
   const { year, month } = yearMonth;
   return requests.filter((r) => {
     const ym = requestYearMonth(r.requestDate);
@@ -85,12 +83,11 @@ function filterRequestsForPeriod(requests, mode, fiscalYear, yearMonth) {
  * @returns {{
  *   names: string[],
  *   totals: number[],
- *   dailyAverages: number[],
- *   divisor: number,
- *   divisorLabel: string
+ *   workDays: number[],
+ *   dailyAverages: number[]
  * }}
  */
-export function buildAssigneeSummary(requests, { mode, fiscalYear, yearMonth, now = new Date() }) {
+export function buildAssigneeSummary(requests, { mode, fiscalYear, yearMonth }) {
   const scoped = filterRequestsForPeriod(requests, mode, fiscalYear, yearMonth);
 
   const counts = new Map();
@@ -107,25 +104,15 @@ export function buildAssigneeSummary(requests, { mode, fiscalYear, yearMonth, no
     return a.localeCompare(b, 'ja');
   });
   const totals = names.map((n) => counts.get(n));
+  const workDays = names.map((n) => workDaysForAssignee(n));
+  const dailyAverages = totals.map((t, i) => (workDays[i] > 0 ? t / workDays[i] : 0));
 
-  let divisor;
-  let divisorLabel;
-  if (mode === 'fiscalYear') {
-    divisor = fiscalYearDivisor(fiscalYear, now);
-    divisorLabel = `${divisor}ヶ月`;
-  } else {
-    divisor = daysInMonth(yearMonth.year, yearMonth.month);
-    divisorLabel = `${divisor}日`;
-  }
-
-  const dailyAverages = totals.map((t) => (divisor > 0 ? t / divisor : 0));
-
-  return { names, totals, dailyAverages, divisor, divisorLabel };
+  return { names, totals, workDays, dailyAverages };
 }
 
 export function formatDailyAverage(value) {
   if (!Number.isFinite(value)) return '—';
-  // Sheet1 同様、割り切れるときは整数、それ以外は小数1桁前後
+  // Sheet1 同様、割り切れるときは整数、それ以外は小数1桁
   const rounded = Math.round(value * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
