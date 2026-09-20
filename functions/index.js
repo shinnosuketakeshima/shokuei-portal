@@ -18,11 +18,20 @@ const MAX_CONTEXT_LENGTH = 200;
 // 新規登録を止めない限り公開 API キーだけで誰でもアカウントを作れてしまい、
 // そのまま API キーの利用枠を消費されるため（2026-09-20 に実際に発生）。
 // コンソールの設定はいつでも戻せるので、コード側でも許可した相手だけを通す。
-// firestore.rules の isAdmin() と必ず揃えること。
-const ALLOWED_EMAILS = [
-  'takesima@jumonji-u.ac.jp',
-  'iimura@jumonji-u.ac.jp'
-];
+//
+// 記述チェックは学科の教員に広く使ってもらうため、個別の許可リストではなく
+// 学内ドメインで判定する。先生が増えるたびに再デプロイしなくて済む。
+// アカウント自体はコンソールからしか作れない（新規登録は無効化済み）ので、
+// 部外者がこの条件を満たすことはない。
+//
+// 兼務申請の個人情報はこれとは別の権限。firestore.rules の isAdmin() が
+// 審査担当者だけに限定しており、こちらを広げても影響しない。
+const ALLOWED_EMAIL_DOMAIN = '@jumonji-u.ac.jp';
+
+function isAllowed(token) {
+  const email = token?.email;
+  return typeof email === 'string' && email.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN);
+}
 
 // 1試行25秒 × 最大2試行 ＝ 約50秒。下の timeoutSeconds: 60 に収まるようにしてある。
 // どちらかを変えるときは両方見直すこと。
@@ -56,7 +65,7 @@ export const analyzeSubmission = onCall(
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'ログインが必要です。');
     }
-    if (!ALLOWED_EMAILS.includes(request.auth.token.email)) {
+    if (!isAllowed(request.auth.token)) {
       console.warn('Rejected analyzeSubmission for non-allowlisted account:', request.auth.uid);
       throw new HttpsError('permission-denied', 'この機能の利用権限がありません。');
     }

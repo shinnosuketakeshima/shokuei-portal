@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
 import { Home, Users, FileText, Settings, Bell, Search, LayoutDashboard, ExternalLink, FolderKanban, Calendar, FileEdit, CheckCircle2, Megaphone, Trash2, Printer, ClipboardList, Globe, MessageCircle, FileSearch } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from './firebase';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
@@ -145,6 +145,8 @@ function NoticeArea() {
 function ConcurrentWorksList() {
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
+  // 兼務申請の閲覧は審査担当者のみ。権限が無い先生には空の一覧ではなく理由を出す。
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => {
     const fetchWorks = async () => {
@@ -158,6 +160,7 @@ function ConcurrentWorksList() {
         setWorks(worksData);
       } catch (error) {
         console.error("Error fetching works:", error);
+        if (error.code === 'permission-denied') setDenied(true);
       } finally {
         setLoading(false);
       }
@@ -185,6 +188,11 @@ function ConcurrentWorksList() {
       <div className="p-0 flex-1 overflow-auto bg-slate-50/30">
         {loading ? (
           <div className="p-8 text-center text-slate-500">読み込み中...</div>
+        ) : denied ? (
+          <div className="p-8 text-center text-slate-500">
+            <p className="font-bold text-slate-700">この一覧を閲覧する権限がありません。</p>
+            <p className="mt-1 text-xs">兼務申請には個人情報が含まれるため、審査担当者のみが閲覧できます。</p>
+          </div>
         ) : works.length === 0 ? (
           <div className="p-8 text-center text-slate-500">申請データがありません。</div>
         ) : (
@@ -241,6 +249,8 @@ function ConcurrentWorksList() {
 function GeneralWorksList() {
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
+  // 兼務申請の閲覧は審査担当者のみ。権限が無い先生には空の一覧ではなく理由を出す。
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => {
     const fetchWorks = async () => {
@@ -253,6 +263,7 @@ function GeneralWorksList() {
         setWorks(worksData);
       } catch (error) {
         console.error("Error fetching works:", error);
+        if (error.code === 'permission-denied') setDenied(true);
       } finally {
         setLoading(false);
       }
@@ -280,6 +291,11 @@ function GeneralWorksList() {
       <div className="p-0 flex-1 overflow-auto bg-slate-50/30">
         {loading ? (
           <div className="p-8 text-center text-slate-500">読み込み中...</div>
+        ) : denied ? (
+          <div className="p-8 text-center text-slate-500">
+            <p className="font-bold text-slate-700">この一覧を閲覧する権限がありません。</p>
+            <p className="mt-1 text-xs">兼務申請には個人情報が含まれるため、審査担当者のみが閲覧できます。</p>
+          </div>
         ) : works.length === 0 ? (
           <div className="p-8 text-center text-slate-500">申請データがありません。</div>
         ) : (
@@ -1125,6 +1141,7 @@ function AdminGate({ children }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -1134,6 +1151,25 @@ function AdminGate({ children }) {
     });
     return () => unsub();
   }, []);
+
+  // 初回のパスワード設定もここから行う。初期パスワードを配らない運用にしているため、
+  // アカウント作成後、各自がこのリンクからパスワードを決める。
+  // 宛先の存在有無で結果を変えないのは、登録済みのアドレスを外部から
+  // 判別できないようにするため。
+  const handlePasswordReset = async () => {
+    setError('');
+    setNotice('');
+    if (!email.trim()) {
+      setError('メールアドレスを入力してから押してください。');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+    } catch (err) {
+      console.error('Error sending password reset email:', err);
+    }
+    setNotice('パスワード設定用のメールを送信しました。届かない場合は迷惑メールフォルダもご確認ください。');
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -1155,8 +1191,8 @@ function AdminGate({ children }) {
   if (!user) {
     return (
       <div className="max-w-sm mx-auto mt-8 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 className="text-base font-bold text-blue-900 mb-1">管理者ログイン</h3>
-        <p className="text-xs text-slate-500 mb-4">申請一覧の閲覧には教員（管理者）ログインが必要です。</p>
+        <h3 className="text-base font-bold text-blue-900 mb-1">教員ログイン</h3>
+        <p className="text-xs text-slate-500 mb-4">学内メールアドレス（@jumonji-u.ac.jp）でログインしてください。</p>
         <form onSubmit={handleLogin} className="flex flex-col gap-3">
           <input type="email" autoComplete="username" required value={email}
             onChange={(e) => setEmail(e.target.value)} placeholder="メールアドレス"
@@ -1165,11 +1201,19 @@ function AdminGate({ children }) {
             onChange={(e) => setPassword(e.target.value)} placeholder="パスワード"
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           {error && <p className="text-xs text-red-600">{error}</p>}
+          {notice && <p className="text-xs text-emerald-700 bg-emerald-50 rounded-md p-2">{notice}</p>}
           <button type="submit" disabled={submitting}
             className="bg-blue-900 text-white rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50">
             {submitting ? 'ログイン中...' : 'ログイン'}
           </button>
         </form>
+        <button type="button" onClick={handlePasswordReset}
+          className="mt-3 text-xs text-blue-600 hover:text-blue-800 font-medium">
+          パスワードを設定・再設定する
+        </button>
+        <p className="mt-1 text-xs text-slate-400">
+          初めてご利用の方も、上のメールアドレス欄に入力してこちらを押してください。
+        </p>
       </div>
     );
   }
