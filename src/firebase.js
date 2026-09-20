@@ -11,7 +11,7 @@ const firebaseConfig = {
   storageBucket: "jumonji-shokuei-portal.firebasestorage.app",
   messagingSenderId: "953075135474",
   appId: "1:953075135474:web:b7b896c21fb467d7c6716b",
-  measurementId: "G-NGXCGWMJG9"
+  measurementId: "G-NGXCQWMJG9"
 };
 
 // Initialize Firebase (HMR対応)
