@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 学生の個人情報を含む授業提出データ
+docs/kaibou-*.xlsx
