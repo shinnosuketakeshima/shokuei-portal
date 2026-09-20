@@ -2,12 +2,27 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { TypeSafeClient, APIError } from '@typesafe-ai/sdk';
-import { buildQuestions } from './questions.js';
+import { buildQuestions, MODES } from './questions.js';
 
 const TYPESAFE_API_KEY = defineSecret('TYPESAFE_API_KEY');
 
-const MAX_TEXT_LENGTH = 8000;
+// 暴走課金を防ぐための見張り番であって、モデルの制限ではない。
+// JEV は 1リクエスト64kトークン・state は32kトークンまで許容するので、
+// 日本語で約2万字ならまだ余裕がある（2万字で概算0.15円）。
+// src/writingCheck/constants.js の MAX_BODY_LENGTH と必ず同じ値にすること。
+// 片方だけ上げると、クライアントが送れてサーバーが弾く行が出る。
+const MAX_TEXT_LENGTH = 20000;
 const MAX_CONTEXT_LENGTH = 200;
+
+// 「認証済み＝許可」とみなさない。Authentication を有効にすると、コンソールで
+// 新規登録を止めない限り公開 API キーだけで誰でもアカウントを作れてしまい、
+// そのまま API キーの利用枠を消費されるため（2026-09-20 に実際に発生）。
+// コンソールの設定はいつでも戻せるので、コード側でも許可した相手だけを通す。
+// firestore.rules の isAdmin() と必ず揃えること。
+const ALLOWED_EMAILS = [
+  'takesima@jumonji-u.ac.jp',
+  'iimura@jumonji-u.ac.jp'
+];
 
 // 1試行25秒 × 最大2試行 ＝ 約50秒。下の timeoutSeconds: 60 に収まるようにしてある。
 // どちらかを変えるときは両方見直すこと。
@@ -41,8 +56,12 @@ export const analyzeSubmission = onCall(
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'ログインが必要です。');
     }
+    if (!ALLOWED_EMAILS.includes(request.auth.token.email)) {
+      console.warn('Rejected analyzeSubmission for non-allowlisted account:', request.auth.uid);
+      throw new HttpsError('permission-denied', 'この機能の利用権限がありません。');
+    }
 
-    const { text, courseContext } = request.data ?? {};
+    const { text, courseContext, mode } = request.data ?? {};
 
     if (typeof text !== 'string' || text.trim().length === 0) {
       throw new HttpsError('invalid-argument', '本文が空です。');
@@ -53,11 +72,16 @@ export const analyzeSubmission = onCall(
     if (courseContext != null && (typeof courseContext !== 'string' || courseContext.length > MAX_CONTEXT_LENGTH)) {
       throw new HttpsError('invalid-argument', '授業の主題が長すぎます。');
     }
+    // 未知の mode を既定に読み替えると、意図しない基準で採点した結果が
+    // 正常値として返ってしまうので、はっきり弾く。
+    if (mode != null && !MODES.includes(mode)) {
+      throw new HttpsError('invalid-argument', '文章の種類の指定が不正です。');
+    }
 
     try {
       const result = await getClient().systemOne({
         state: text,
-        questions: buildQuestions(courseContext?.trim() || '')
+        questions: buildQuestions(courseContext?.trim() || '', mode)
       });
       return { answers: result.answers, usage: result.usage, model: result.model };
     } catch (err) {

@@ -3,11 +3,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 兼務申請：投稿(create)は検証付きで公開、閲覧(read)・削除(delete)は認証済み管理者のみ、更新(update)は禁止
+    // 「認証済み＝管理者」とみなしてはいけない。
+    // Authentication を有効にすると、コンソールで新規登録を止めない限り
+    // 公開 API キーだけで誰でもアカウントを作れてしまう（2026-09-20 に実際に発生）。
+    // コンソールの設定はいつでも戻せるので、ルール側でも許可した相手だけを通す。
+    //
+    // 審査担当者を増やすときはここにメールアドレスを足し、
+    // Firebase コンソールの Authentication → Users でアカウントも作成すること。
+    // ここに足すだけではログインできる人は増えない。
+    // functions/index.js の ALLOWED_EMAILS とも揃えること。
+    function isAdmin() {
+      return request.auth != null
+             && request.auth.token.email in [
+                  'takesima@jumonji-u.ac.jp',
+                  'iimura@jumonji-u.ac.jp'
+                ];
+    }
+
+    // 兼務申請：投稿(create)は検証付きで公開、閲覧(read)・削除(delete)は審査担当者のみ、更新(update)は禁止
     match /concurrent_works/{id} {
       allow create: if request.resource.data.applicationType in ['part-time', 'general']
                     && request.resource.data.createdAt == request.time;
-      allow read, delete: if request.auth != null;
+      allow read, delete: if isAdmin();
       allow update: if false;
     }
 
