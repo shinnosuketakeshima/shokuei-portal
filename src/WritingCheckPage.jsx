@@ -3,11 +3,12 @@ import { useState, useMemo, useRef } from 'react';
 import { FileSearch, AlertTriangle, Download, RotateCcw } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { parseUnipaXlsx } from './writingCheck/parseUnipaXlsx.js';
+import { parseSubmissionZip } from './writingCheck/parseSubmissionZip.js';
 import { buildPayloads } from './writingCheck/anonymize.js';
 import { runAnalysis } from './writingCheck/analyzeClient.js';
 import { buildResultRows, sortRows } from './writingCheck/scoring.js';
 import { buildWritingCheckWorkbook } from './writingCheck/exportXlsx.js';
-import { MAX_BODY_LENGTH, USD_PER_MTOK } from './writingCheck/constants.js';
+import { MAX_BODY_LENGTH, USD_PER_MTOK, MODES, DEFAULT_MODE } from './writingCheck/constants.js';
 import WritingCheckUploader from './writingCheck/WritingCheckUploader';
 import WritingCheckTable from './writingCheck/WritingCheckTable';
 import WritingCheckDetailModal from './writingCheck/WritingCheckDetailModal';
@@ -15,9 +16,12 @@ import WritingCheckDetailModal from './writingCheck/WritingCheckDetailModal';
 export default function WritingCheckPage() {
   const [fileName, setFileName] = useState('');
   const [sourceRows, setSourceRows] = useState([]);
+  const [modeKey, setModeKey] = useState(DEFAULT_MODE);
   const [courseContext, setCourseContext] = useState('');
   const [extraNames, setExtraNames] = useState('');
   const [analyses, setAnalyses] = useState([]);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [loadProgress, setLoadProgress] = useState({ done: 0, total: 0 });
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState(null);
@@ -25,13 +29,24 @@ export default function WritingCheckPage() {
   const [sortDirection, setSortDirection] = useState('asc');
   const [selectedRow, setSelectedRow] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
+  // 読み込んだファイルに既存のAI判定列があったか。無ければ関連する列と ⚑ を出さない。
+  const [hasSourceVerdict, setHasSourceVerdict] = useState(false);
 
   // 中断は再レンダリングを挟まずワーカーから読む必要があるので ref で持つ。
   const stopRequested = useRef(false);
 
+  const mode = MODES[modeKey];
+
   const extraNameList = useMemo(
     () => extraNames.split(/[,、]/).map((name) => name.trim()).filter(Boolean),
     [extraNames]
+  );
+
+  // 本文を取り出せなかった行（画像だけのPDFなど）は採点しない。
+  // 空文字を送っても意味のないスコアが返るだけで、費用も無駄になる。
+  const analyzableIndexes = useMemo(
+    () => sourceRows.map((row, index) => (row.body ? index : null)).filter((i) => i != null),
+    [sourceRows]
   );
 
   const payloads = useMemo(
@@ -39,38 +54,66 @@ export default function WritingCheckPage() {
     [sourceRows, extraNameList]
   );
 
-  const resultRows = useMemo(() => buildResultRows(sourceRows, analyses), [sourceRows, analyses]);
+  const previewPayloads = useMemo(
+    () => analyzableIndexes.map((index) => payloads[index]),
+    [analyzableIndexes, payloads]
+  );
+
+  const resultRows = useMemo(() => buildResultRows(sourceRows, analyses, mode), [sourceRows, analyses, mode]);
   const visibleRows = useMemo(() => sortRows(resultRows, sortKey, sortDirection), [resultRows, sortKey, sortDirection]);
 
   const hasResults = analyses.some((a) => a?.status === 'ok');
   const failedCount = analyses.filter((a) => a?.status === 'error').length;
   const totalTokens = resultRows.reduce((sum, row) => sum + row.inputTokens, 0);
+  const skippedRows = sourceRows.filter((row) => row.extractError);
+  const duplicateRows = sourceRows.filter((row) => row.duplicateOf?.length > 0);
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setError(null);
-    // ドラッグ&ドロップでは何でも落とせてしまうので、ここで弾く。
-    // ExcelJS はレガシーな .xls を読めない。
-    if (!/\.xlsx$/i.test(file.name)) {
-      setError('.xlsx ファイルを選んでください。（.xls や PDF は読み込めません）');
+
+    const isZip = /\.zip$/i.test(file.name);
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    if (!isZip && !isXlsx) {
+      setError('.xlsx（感想文の一覧）または .zip（レポートの提出ファイル）を選んでください。');
       return;
     }
+
+    setError(null);
     setAnalyses([]);
     setSelectedRow(null);
+    setIsLoadingFile(true);
+    setLoadProgress({ done: 0, total: 0 });
+
     try {
-      const { rows } = await parseUnipaXlsx(file);
+      // ファイルの種類で評価軸が変わる。レポートに感想文用の軸を当てると、
+      // 型どおりに書けている学生ほど「AI的」に出てしまうため自動で切り替える。
+      const nextMode = isZip ? 'report' : 'reflection';
+      const parsed = isZip
+        ? await parseSubmissionZip(file, (done, total) => setLoadProgress({ done, total }))
+        : await parseUnipaXlsx(file);
+      const { rows } = parsed;
+
       if (rows.length === 0) {
         setError('提出データが1件も見つかりませんでした。');
         return;
       }
+      if (!isZip && rows.every((row) => !row.body)) {
+        setError('「提出内容」列が見つかりません。ファイル提出の課題であれば、zip のほうを読み込んでください。');
+        return;
+      }
+
+      setModeKey(nextMode);
+      setHasSourceVerdict(Boolean(parsed.hasSourceVerdict));
       setSourceRows(rows);
       setFileName(file.name);
     } catch (err) {
-      console.error('Error parsing submission xlsx:', err);
+      console.error('Error parsing submissions:', err);
       setSourceRows([]);
       setFileName('');
       setError(err.message ?? 'ファイルの読み込みに失敗しました。');
+    } finally {
+      setIsLoadingFile(false);
     }
   };
 
@@ -86,6 +129,7 @@ export default function WritingCheckPage() {
         targets.map((index) => payloads[index]),
         {
           courseContext: courseContext.trim(),
+          mode: modeKey,
           onProgress: (done, total) => setProgress({ done, total }),
           shouldStop: () => stopRequested.current
         }
@@ -106,10 +150,10 @@ export default function WritingCheckPage() {
     }
   };
 
-  const handleRun = () => analyze(sourceRows.map((_, index) => index));
+  const handleRun = () => analyze(analyzableIndexes);
 
   // 全件を投げる前の試し打ち。採点の傾向が想定と違えば、ここで止めて criteria を見直す。
-  const handleRunOne = () => analyze([0]);
+  const handleRunOne = () => analyze(analyzableIndexes.slice(0, 1));
 
   const handleStop = () => {
     stopRequested.current = true;
@@ -137,9 +181,9 @@ export default function WritingCheckPage() {
     setError(null);
     setIsExporting(true);
     try {
-      const buffer = await buildWritingCheckWorkbook(visibleRows, courseContext.trim());
+      const buffer = await buildWritingCheckWorkbook(visibleRows, courseContext.trim(), mode, hasSourceVerdict);
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      saveAs(blob, `記述チェック結果_${fileName.replace(/\.xlsx$/i, '')}.xlsx`);
+      saveAs(blob, `記述チェック結果_${fileName.replace(/\.(xlsx|zip)$/i, '')}.xlsx`);
     } catch (err) {
       console.error('Error exporting writing check results:', err);
       setError('エクスポートに失敗しました。');
@@ -161,7 +205,7 @@ export default function WritingCheckPage() {
           <p className="text-xs leading-relaxed">
             このスコアは文章の書き方の傾向を示す<strong>参考指標</strong>であり、AI 利用の有無を判定するものではありません。
             単独で不正の根拠としないでください。
-            同じ授業の感想は内容が似るのが当然であり、事実を簡潔にまとめた文章は「自分の経験」が低く出ます。
+            同じ課題の提出物は内容が似るのが当然であり、簡潔にまとめられた文章ほど不利に出ることがあります。
             必ず本文を読んだうえで判断してください。
             順位は<strong>読み込んだこのファイルの中だけ</strong>での比較です。別のクラスや別の課題を読み込めば
             同じ「1番目」でも意味が変わるため、書き出したファイル同士を突き合わせることはできません。
@@ -172,8 +216,12 @@ export default function WritingCheckPage() {
 
         <WritingCheckUploader
           fileName={fileName}
+          mode={mode}
           rows={sourceRows}
-          payloads={payloads}
+          analyzableCount={analyzableIndexes.length}
+          skippedRows={skippedRows}
+          duplicateRows={duplicateRows}
+          payloads={previewPayloads}
           courseContext={courseContext}
           onCourseContextChange={setCourseContext}
           extraNames={extraNames}
@@ -182,6 +230,8 @@ export default function WritingCheckPage() {
           onRun={handleRun}
           onRunOne={handleRunOne}
           onStop={handleStop}
+          isLoadingFile={isLoadingFile}
+          loadProgress={loadProgress}
           isRunning={isRunning}
           progress={progress}
         />
@@ -218,15 +268,17 @@ export default function WritingCheckPage() {
             </div>
 
             <p className="text-xs text-slate-500">
-              「要確認度」は<strong>この集団の中での順位</strong>です。1位＝最も要確認度が高いというだけの並べ替え指標で、
+              「要確認度」は<strong>この集団の中での順位</strong>です。1番目＝最も要確認度が高いというだけの並べ替え指標で、
               AI 利用の確率ではありません。各軸の見出しにある「↑人間らしい / ↑AI的」は、スコアが高いときの向きを示します。
               行をクリックすると本文と内訳が開きます。列見出しのクリックで並び替えできます。
-              ⚑ は元データの疑いスコアと順位が大きく食い違う行です。
+              {hasSourceVerdict && ' ⚑ は元データの疑いスコアと順位が大きく食い違う行です。'}
             </p>
 
             <div className="max-h-[70vh] min-h-[16rem] overflow-auto border border-slate-200 rounded-lg">
               <WritingCheckTable
                 rows={visibleRows}
+                mode={mode}
+                hasSourceVerdict={hasSourceVerdict}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onSort={handleSort}
@@ -237,7 +289,9 @@ export default function WritingCheckPage() {
         )}
       </div>
 
-      {selectedRow && <WritingCheckDetailModal row={selectedRow} onClose={() => setSelectedRow(null)} />}
+      {selectedRow && (
+        <WritingCheckDetailModal row={selectedRow} mode={mode} onClose={() => setSelectedRow(null)} />
+      )}
     </div>
   );
 }

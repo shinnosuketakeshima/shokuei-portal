@@ -1,5 +1,5 @@
 // src/writingCheck/scoring.js
-import { AXES, SCORE_MAX, REVIEW_WEIGHTS } from './constants.js';
+import { SCORE_MAX } from './constants.js';
 import { interpret, rankLabel } from './interpret.js';
 
 // サーバーが返す score は 0〜SCORE_MAX の実数（段の間に落ちることがある）。
@@ -9,12 +9,11 @@ export function normalize(score) {
 
 /**
  * 並べ替え用の合成指標「要確認度（参考）」。0〜1。
- * AI 利用の確率ではない。具体性と経験が低く、文体が整っている文章ほど高くなる、
- * というだけの値であり、閾値もラベルも付けない。
+ * AI 利用の確率ではない。文章の種類ごとの重み（mode.weights）で合成しているだけ。
  */
-export function reviewScore(answers) {
+export function reviewScore(answers, weights) {
   let total = 0;
-  for (const { key, weight, invert } of REVIEW_WEIGHTS) {
+  for (const { key, weight, invert } of weights) {
     const answer = answers?.[key];
     if (!answer) return null;
     const value = normalize(answer.score);
@@ -25,14 +24,15 @@ export function reviewScore(answers) {
 
 /**
  * 解析結果を表示・書き出し用の行に畳む。元の行データ（氏名など）と突き合わせる。
+ * @param {object} mode MODES の要素。軸と重みを決める
  */
-export function buildResultRows(sourceRows, analyses) {
+export function buildResultRows(sourceRows, analyses, mode) {
   const rows = sourceRows.map((row, index) => {
     const analysis = analyses[index];
     const answers = analysis?.status === 'ok' ? analysis.answers : null;
 
     const scores = {};
-    for (const axis of AXES) {
+    for (const axis of mode.axes) {
       const answer = answers?.[axis.key];
       scores[axis.key] = answer ? { score: answer.score, confidence: answer.confidence } : null;
     }
@@ -43,8 +43,8 @@ export function buildResultRows(sourceRows, analyses) {
       error: analysis?.error ?? null,
       truncated: analysis?.truncated ?? false,
       scores,
-      review: answers ? reviewScore(answers) : null,
-      reading: answers ? interpret(scores) : '',
+      review: answers ? reviewScore(answers, mode.weights) : null,
+      reading: answers ? interpret(scores, mode.axes) : '',
       inputTokens: analysis?.usage?.input_tokens ?? 0
     };
   });
@@ -53,7 +53,7 @@ export function buildResultRows(sourceRows, analyses) {
 }
 
 // 要確認度の生の値（0.63 など）は基準が無くて読めない。集団内で何位かに直す。
-// 1位＝最も要確認度が高い。解析済みの行だけで順位を付ける。
+// 1番目＝最も要確認度が高い。解析済みの行だけで順位を付ける。
 function addRanks(rows) {
   const ranked = rows
     .filter((row) => row.review != null)

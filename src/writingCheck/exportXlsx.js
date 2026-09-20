@@ -1,9 +1,9 @@
 // src/writingCheck/exportXlsx.js
 import ExcelJS from 'exceljs';
-import { AXES } from './constants.js';
+// 軸は文章の種類（mode）によって違うので、定数を直接読まず引数で受け取る。
 
 // 列を足すときは、ここと addRow() に渡すオブジェクトの両方を直すこと。
-function buildColumns() {
+function buildColumns(axes, hasSourceVerdict) {
   const columns = [
     { header: '学籍番号', key: 'studentId', width: 12 },
     { header: '氏名', key: 'kanjiName', width: 16 }
@@ -14,15 +14,20 @@ function buildColumns() {
     { header: '読み解き', key: 'reading', width: 50 }
   );
   // 見出しに向きを入れる。書き出したファイルだけを見た人が数値の意味を取り違えないように。
-  for (const axis of AXES) {
+  for (const axis of axes) {
     const suffix = axis.direction ? `（↑${axis.direction}）` : '';
     columns.push({ header: `${axis.label}${suffix}`, key: axis.key, width: 20 });
     columns.push({ header: `${axis.short}・信頼度`, key: `${axis.key}_confidence`, width: 14 });
   }
+  columns.push({ header: '要確認度 生値（参考）', key: 'review', width: 18 });
+  // 元データの判定列は、読み込んだファイルに入っていたときだけ出す（画面と揃える）。
+  if (hasSourceVerdict) {
+    columns.push(
+      { header: '元データ AI疑いスコア', key: 'sourceScore', width: 18 },
+      { header: '元データ AI判定', key: 'sourceVerdict', width: 14 }
+    );
+  }
   columns.push(
-    { header: '要確認度 生値（参考）', key: 'review', width: 18 },
-    { header: '元データ AI疑いスコア', key: 'sourceScore', width: 18 },
-    { header: '元データ AI判定', key: 'sourceVerdict', width: 14 },
     { header: '状態', key: 'status', width: 10 },
     { header: '本文', key: 'body', width: 60 }
   );
@@ -31,10 +36,10 @@ function buildColumns() {
 
 const round2 = (value) => (value == null ? '' : Math.round(value * 100) / 100);
 
-export async function buildWritingCheckWorkbook(rows, courseContext) {
+export async function buildWritingCheckWorkbook(rows, courseContext, mode, hasSourceVerdict) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('記述チェック結果');
-  sheet.columns = buildColumns();
+  sheet.columns = buildColumns(mode.axes, hasSourceVerdict);
   sheet.getRow(1).font = { bold: true };
 
   rows.forEach((row) => {
@@ -50,7 +55,7 @@ export async function buildWritingCheckWorkbook(rows, courseContext) {
       status: row.status === 'ok' ? '完了' : row.status === 'error' ? '失敗' : '未実行',
       body: row.body
     };
-    for (const axis of AXES) {
+    for (const axis of mode.axes) {
       values[axis.key] = round2(row.scores?.[axis.key]?.score);
       values[`${axis.key}_confidence`] = round2(row.scores?.[axis.key]?.confidence);
     }

@@ -1,42 +1,43 @@
 // src/writingCheck/interpret.js
-import { AXES, SCORE_MAX } from './constants.js';
+import { SCORE_MAX } from './constants.js';
 
-// 4軸の数値だけを見せても意味が読み取れないので、日本語の一文に畳んで添える。
+// 軸の数値だけを見せても意味が読み取れないので、日本語の一文に畳んで添える。
 // ここは API を呼ばない純粋なルールベース。スコアの言い換えであって、
 // AI が書いたかどうかの判断ではない。
-const LOW = SCORE_MAX / 3;        // 1.0
-const HIGH = SCORE_MAX * 2 / 3;   // 2.0
-const VERY_HIGH = SCORE_MAX * 5 / 6; // 2.5
+//
+// 文言は軸の定義（constants.js の lowPhrase / highPhrase / warnLow）に持たせてある。
+// ここに文章の種類ごとの分岐を書くと、軸を足すたびに2か所直すことになるため。
+const LOW = SCORE_MAX / 3;           // 1.0
+const HIGH = (SCORE_MAX * 2) / 3;    // 2.0
+const VERY_HIGH = (SCORE_MAX * 5) / 6; // 2.5
 const LOW_CONFIDENCE = 0.3;
 
-export function interpret(scores) {
-  const value = (key) => scores?.[key]?.score ?? null;
-  const specificity = value('lecture_specificity');
-  const reflection = value('personal_reflection');
-  const formulaic = value('formulaic_style');
-  const accuracy = value('content_accuracy');
-
-  if (specificity == null) return '';
+export function interpret(scores, axes) {
+  const values = axes.map((axis) => ({ axis, entry: scores?.[axis.key] }));
+  if (values.every(({ entry }) => !entry)) return '';
 
   const parts = [];
+  const warnings = [];
 
-  if (specificity < LOW) parts.push('授業固有の内容にほとんど触れていない');
-  else if (specificity >= HIGH) parts.push('授業で扱った具体的な内容に触れている');
+  for (const { axis, entry } of values) {
+    if (!entry) continue;
 
-  if (reflection < LOW) parts.push('自分の経験への言及がほぼない');
-  else if (reflection >= HIGH) parts.push('自分の理解の変化や既習内容に触れている');
+    // 「AI的」側の軸は、はっきり高いときだけ言及する。中くらいで指摘すると
+    // 型どおりに書けている文章を不必要に疑うことになる。
+    const highThreshold = axis.direction === 'AI的' ? VERY_HIGH : HIGH;
 
-  if (formulaic >= VERY_HIGH) parts.push('文体が整いすぎている');
-  else if (formulaic < LOW) parts.push('文体に崩れがあり口語が混じる');
+    if (axis.lowPhrase && entry.score < LOW) parts.push(axis.lowPhrase);
+    else if (axis.highPhrase && entry.score >= highThreshold) parts.push(axis.highPhrase);
 
-  let text = parts.length > 0 ? `${parts.join('、')}。` : '各軸とも中間で、際立った特徴はない。';
-
-  // 正確さは AI 検出とは別の話だが、誰が何を誤解しているかは教員に直接役立つ。
-  if (accuracy != null && accuracy < LOW) {
-    text += ' 内容に誤りが目立つため、理解の確認が必要。';
+    if (axis.warnLow && entry.score < LOW) warnings.push(axis.warnLow);
   }
 
-  const confidences = AXES.map((axis) => scores?.[axis.key]?.confidence).filter((c) => c != null);
+  // 軸が6つあるので、該当を全部並べると一文が読めない長さになる。
+  // axes の定義順（人間側の軸が先）に3つまで拾う。
+  let text = parts.length > 0 ? `${parts.slice(0, 3).join('、')}。` : '各軸とも中間で、際立った特徴はない。';
+  for (const warning of warnings) text += ` ${warning}`;
+
+  const confidences = values.map(({ entry }) => entry?.confidence).filter((c) => c != null);
   if (confidences.length > 0 && Math.min(...confidences) < LOW_CONFIDENCE) {
     text += ' ただし判定の信頼度が低い。';
   }

@@ -1,6 +1,6 @@
 // src/writingCheck/WritingCheckTable.jsx
 import { AlertCircle } from 'lucide-react';
-import { AXES, SCORE_MAX } from './constants.js';
+import { SCORE_MAX } from './constants.js';
 
 const format = (value) => (value == null ? '—' : value.toFixed(2));
 
@@ -37,20 +37,27 @@ function RankCell({ row }) {
   );
 }
 
-export default function WritingCheckTable({ rows, sortKey, sortDirection, onSort, onRowClick }) {
+export default function WritingCheckTable({ rows, mode, hasSourceVerdict, sortKey, sortDirection, onSort, onRowClick }) {
+  const axes = mode.axes;
   const columns = [
     { key: 'studentId', label: '学籍番号' },
     { key: 'kanjiName', label: '氏名' },
-    { key: 'review', label: '要確認度（参考）', title: '具体性と経験が低く、文体が整っている文章ほど上位。AI 利用の確率ではありません' },
+    { key: 'review', label: '要確認度（参考）', title: '「↑人間らしい」の軸が低く「↑AI的」の軸が高い文章ほど上位。AI 利用の確率ではありません' },
     // 軸のスコアは向きが自明でないので、見出しに「↑人間らしい / ↑AI的」を常時出す。
-    ...AXES.map((axis) => ({
+    ...axes.map((axis) => ({
       key: axis.key,
       label: axis.short,
       direction: axis.direction,
       title: `${axis.label}：${axis.description}`
     })),
-    { key: 'sourceScore', label: '元データ 疑いスコア' },
-    { key: 'sourceVerdict', label: '元データ 判定' }
+    // 元データの判定列は、読み込んだファイルに入っていたときだけ出す。
+    // ファイル提出（zip）の名簿にはこの列が無く、常に空欄になって場所を取るだけになる。
+    ...(hasSourceVerdict
+      ? [
+          { key: 'sourceScore', label: '元データ 疑いスコア' },
+          { key: 'sourceVerdict', label: '元データ 判定' }
+        ]
+      : [])
   ];
 
   return (
@@ -93,7 +100,15 @@ export default function WritingCheckTable({ rows, sortKey, sortDirection, onSort
             <td className="px-3 py-2 whitespace-nowrap">{row.studentId}</td>
             <td className="px-3 py-2 whitespace-nowrap font-medium text-slate-900">
               {row.kanjiName}
-              {row.divergent && (
+              {row.truncated && (
+                <span
+                  className="ml-1.5 text-xs text-amber-700 font-normal"
+                  title="本文が長いため中間を省いて解析しています。スコアは本文全体に基づくものではありません。"
+                >
+                  （一部省略）
+                </span>
+              )}
+              {hasSourceVerdict && row.divergent && (
                 <span
                   className="ml-1.5 text-amber-600"
                   title="元データの疑いスコアと要確認度で、集団内の順位が大きく食い違っています。読んで確かめてください。"
@@ -103,11 +118,15 @@ export default function WritingCheckTable({ rows, sortKey, sortDirection, onSort
               )}
             </td>
             <RankCell row={row} />
-            {AXES.map((axis) => (
+            {axes.map((axis) => (
               <ScoreCell key={axis.key} entry={row.scores?.[axis.key]} />
             ))}
-            <td className="px-3 py-2 whitespace-nowrap text-slate-500">{row.sourceScore || '—'}</td>
-            <td className="px-3 py-2 whitespace-nowrap text-slate-500">{row.sourceVerdict || '—'}</td>
+            {hasSourceVerdict && (
+              <>
+                <td className="px-3 py-2 whitespace-nowrap text-slate-500">{row.sourceScore || '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-slate-500">{row.sourceVerdict || '—'}</td>
+              </>
+            )}
             <td className="px-3 py-2 min-w-[18rem] text-slate-600">
               {row.status === 'error' ? (
                 <span className="flex items-center gap-1 text-rose-600">

@@ -4,7 +4,13 @@ import { Upload, Eye, EyeOff, Play, Info, FlaskConical, Square } from 'lucide-re
 
 export default function WritingCheckUploader({
   fileName,
+  mode,
   rows,
+  analyzableCount,
+  skippedRows,
+  duplicateRows,
+  isLoadingFile,
+  loadProgress,
   payloads,
   courseContext,
   onCourseContextChange,
@@ -78,19 +84,49 @@ export default function WritingCheckUploader({
           </span>
           {!isDragging && (
             <span className="text-xs text-slate-500">
-              またはクリックして選択（UNIPA から出力した提出物一覧 .xlsx）
+              またはクリックして選択（提出物一覧 .xlsx / 提出ファイルをまとめた .zip）
             </span>
           )}
-          <input type="file" accept=".xlsx" className="hidden" onChange={onFileChange} disabled={isRunning} />
+          <input type="file" accept=".xlsx,.zip" className="hidden" onChange={onFileChange} disabled={isRunning || isLoadingFile} />
         </label>
 
-        {rows.length > 0 && (
-          <p className="mt-3 text-sm text-slate-600">
-            {rows.length} 件の提出を読み込みました。
-            {truncatedCount > 0 && (
-              <span className="text-amber-700">（うち {truncatedCount} 件は本文が長いため末尾を切り詰めます）</span>
-            )}
+        {isLoadingFile && (
+          <p className="mt-3 text-sm text-slate-500">
+            読み込み中...
+            {loadProgress.total > 0 && ` ${loadProgress.done}/${loadProgress.total}件の本文を取り出しています`}
           </p>
+        )}
+
+        {!isLoadingFile && rows.length > 0 && (
+          <div className="mt-3 space-y-2 text-sm">
+            <p className="text-slate-600">
+              <span className="font-bold text-cyan-800">{mode.label}</span> として {rows.length} 件を読み込みました。
+              {truncatedCount > 0 && (
+                <span className="text-amber-700">（うち {truncatedCount} 件は本文が長いため末尾を切り詰めます）</span>
+              )}
+            </p>
+
+            {duplicateRows.length > 0 && (
+              <p className="text-xs text-slate-500">
+                同じ学生が複数ファイルを提出しているものは1件にまとめました（
+                {duplicateRows.map((r) => `${r.studentId}: ${r.duplicateOf.join('・')}を除外`).join(' / ')}）。
+              </p>
+            )}
+
+            {skippedRows.length > 0 && (
+              <div className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md p-3">
+                <p className="font-bold">本文を取り出せなかった {skippedRows.length} 件は解析しません</p>
+                <ul className="mt-1 space-y-0.5">
+                  {skippedRows.map((r) => (
+                    <li key={r.studentId}>
+                      {r.studentId} {r.kanjiName}（{r.fileName}）— {r.extractError}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1">この分は目で確認してください。</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -106,7 +142,7 @@ export default function WritingCheckUploader({
                 value={courseContext}
                 onChange={(e) => onCourseContextChange(e.target.value)}
                 disabled={isRunning}
-                placeholder="例: 解剖生理学 第2回（ATPとエネルギー代謝）"
+                placeholder={mode.key === 'report' ? '例: 解剖生理学実験 ラットの解剖' : '例: 解剖生理学 第2回（ATPとエネルギー代謝）'}
                 className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm sm:text-sm focus:ring-cyan-500 focus:border-cyan-500"
               />
               <p className="mt-1 text-xs text-slate-500">
@@ -212,7 +248,7 @@ export default function WritingCheckUploader({
                 className="flex items-center gap-2 bg-cyan-700 text-white py-2 px-4 rounded-lg font-bold hover:bg-cyan-800 disabled:opacity-50 transition-colors"
               >
                 <Play className="w-4 h-4" />
-                {isRunning ? `解析中... ${progress.done}/${progress.total}件` : `${rows.length}件を解析する`}
+                {isRunning ? `解析中... ${progress.done}/${progress.total}件` : `${analyzableCount}件を解析する`}
               </button>
               {isRunning && (
                 <button

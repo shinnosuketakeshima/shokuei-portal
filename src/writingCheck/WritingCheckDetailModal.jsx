@@ -1,8 +1,8 @@
 // src/writingCheck/WritingCheckDetailModal.jsx
 import { X } from 'lucide-react';
-import { AXES, SCORE_MAX } from './constants.js';
+import { SCORE_MAX } from './constants.js';
 
-export default function WritingCheckDetailModal({ row, onClose }) {
+export default function WritingCheckDetailModal({ row, mode, onClose }) {
   return (
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
       <div
@@ -35,7 +35,7 @@ export default function WritingCheckDetailModal({ row, onClose }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {AXES.map((axis) => {
+            {mode.axes.map((axis) => {
               const entry = row.scores?.[axis.key];
               return (
                 <div key={axis.key} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
@@ -58,6 +58,13 @@ export default function WritingCheckDetailModal({ row, onClose }) {
               );
             })}
           </div>
+
+          {row.truncated && (
+            <p className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md p-3">
+              本文が長いため、冒頭と末尾を残して中間を省いた状態で解析しています。
+              スコアは本文全体に基づくものではありません。下に表示しているのは省略前の全文です。
+            </p>
+          )}
 
           <div>
             <p className="text-xs font-bold text-slate-700 mb-1.5">提出本文</p>

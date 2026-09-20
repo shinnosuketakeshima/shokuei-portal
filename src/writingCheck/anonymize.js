@@ -1,4 +1,5 @@
 // src/writingCheck/anonymize.js
+import { TRUNCATE_HEAD_LENGTH, TRUNCATE_TAIL_LENGTH, TRUNCATE_MARKER } from './constants.js';
 
 // 本文以外の列（氏名・学籍番号・IPアドレス・性別など）はそもそも送信しない。
 // ここで落とすのは、学生が本文中に自分や教員の名前を書いてしまった分。
@@ -13,7 +14,48 @@ const NAME_PLACEHOLDER = '［氏名］';
 const STUDENT_ID_PLACEHOLDER = '［学籍番号］';
 const CONTACT_PLACEHOLDER = '［連絡先］';
 
-const STUDENT_ID_PATTERN = /\d{2}[A-Za-z]{2}\d{3}/g;
+// 学籍番号は 25NB031 形式。学生が桁を打ち間違えた 25NB0009 のような表記も
+// 実データにあるので、末尾の数字は3〜4桁を許す。
+const STUDENT_ID_PATTERN = /\d{2}[A-Za-z]{2}\d{3,4}/g;
+
+// レポートでは「報告者25NB033齋藤麻衣」「共同実験者25NB001青木蘭」のように
+// 学籍番号の直後に氏名が来る。共同実験者は提出者名簿に載っていないため、
+// 姓＋名の照合だけでは伏せられない。学籍番号に続く漢字・カタカナの並びを
+// 氏名とみなして落とす、名簿に依存しない保険。
+//
+// 2〜6文字に制限するのは、氏名の後に続く本文まで巻き込まないため。
+// 漢字のみ・カタカナのみに限り、ひらがなは含めない（「さんと」のような
+// 助詞まで消してしまうため）。
+// 氏名とみなす並び。実データで確認した形をすべて拾う必要がある:
+//   浅田 真登香   姓と名が空白で分かれている（PDF から抽出するとこの形が多い）
+//   大磯めぐみ    名がひらがな
+//   後藤莉々香    区切りなし
+// 姓だけを消して名が残る事故を防ぐため、空白をまたいだ2つ目の漢字列まで取り込む。
+//
+// 区切りに改行を含めないのは、学籍番号が行末に来たときに次の行の本文
+// （「実験日」など）まで巻き込まないため。
+// 短すぎる一致は本文を壊すので、長さの下限は replace のコールバック側で弾く。
+const SPACE = '[^\\S\\n]';
+const NAME_SHAPE =
+  `[\\u4E00-\\u9FFF]{1,6}(?:${SPACE}{1,4}[\\u4E00-\\u9FFF]{1,6})?[\\u3040-\\u309F]{0,4}`
+  + `|[\\u30A0-\\u30FF]{1,6}(?:${SPACE}{1,4}[\\u30A0-\\u30FF]{1,6})?`;
+
+const MIN_NAME_LENGTH = 2;
+
+const ID_FOLLOWED_BY_NAME = new RegExp(`(\\d{2}[A-Za-z]{2}\\d{3,4})${SPACE}*(${NAME_SHAPE})`, 'g');
+
+// 「氏名」「学籍番号」などの見出し語は、学籍番号の直後に来ても人名ではない。
+// 伏せても実害はないが、本文が読みにくくなるので除く。
+const LABEL_WORDS = new Set(['氏名', '学籍', '番号', '学籍番号', '報告者', '共同実験者', '学生']);
+
+// 共同実験者を並べるとき、2人目以降は学籍番号の頭を省いて
+// 「25NB005池田瑠夏015大蝶理子021金子美音」と書く学生がいる（実データで確認）。
+// 数字3〜4桁＋氏名を単独で拾うと「1200倍率」のような記述まで巻き込むため、
+// すでに伏せた並びの直後に続くものだけを、連鎖的に追いかけて消す。
+const CHAINED_NAME = new RegExp(
+  `(［学籍番号］［氏名］)[^\\S\\n、,／/・]*[、,／/・]?${SPACE}*(\\d{3,4})${SPACE}*(${NAME_SHAPE})`,
+  'g'
+);
 const EMAIL_PATTERN = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 // 区切りのある形と携帯番号だけに絞る。数字の並びを無条件に消すと、
 // 本文中の「ATPが3つ」「26問」のような数値まで巻き込むため。
@@ -86,6 +128,40 @@ export function anonymizeBody(body, nameTargets) {
     }
   }
 
+  // 学籍番号＋氏名の並びを先に処理する。学籍番号だけを先に伏せてしまうと、
+  // 直後が氏名だという手がかりが消えてしまうため、順序を入れ替えてはいけない。
+  const redactedPair = `${STUDENT_ID_PLACEHOLDER}${NAME_PLACEHOLDER}`;
+  const pairHits = [];
+
+  const isName = (candidate) => {
+    const compact = candidate.replace(/\s/g, '');
+    // 見出し語は人名ではないし、1文字では本文の一部を巻き込むだけ。
+    return compact.length >= MIN_NAME_LENGTH && !LABEL_WORDS.has(compact);
+  };
+
+  text = text.replace(ID_FOLLOWED_BY_NAME, (match, id, name) => {
+    if (!isName(name)) return `${STUDENT_ID_PLACEHOLDER}${name}`;
+    pairHits.push(match);
+    return redactedPair;
+  });
+
+  // 省略形の並びを連鎖的に追う。1回の replace では、置換して生まれた
+  // 「［学籍番号］［氏名］」の直後をもう一度見に行けないため繰り返す。
+  for (let pass = 0; pass < 10; pass += 1) {
+    let changed = false;
+    text = text.replace(CHAINED_NAME, (match, head, digits, name) => {
+      if (!isName(name)) return match;
+      changed = true;
+      pairHits.push(`${digits}${name}`);
+      return `${head}${redactedPair}`;
+    });
+    if (!changed) break;
+  }
+
+  if (pairHits.length > 0) {
+    hits.push({ from: pairHits.join(', '), to: redactedPair, count: pairHits.length });
+  }
+
   for (const [pattern, placeholder] of [
     [STUDENT_ID_PATTERN, STUDENT_ID_PLACEHOLDER],
     [EMAIL_PATTERN, CONTACT_PLACEHOLDER],
@@ -109,13 +185,24 @@ export function buildPayloads(rows, extraNames, maxLength) {
 
   return rows.map((row) => {
     const { text, hits } = anonymizeBody(row.body, nameTargets);
-    const truncated = text.length > maxLength;
     return {
       studentId: row.studentId,
       rowNumber: row.rowNumber,
-      text: truncated ? text.slice(0, maxLength) : text,
-      truncated,
+      ...truncate(text, maxLength),
       hits
     };
   });
+}
+
+/**
+ * 上限を超える本文を、冒頭と末尾を残して切り詰める。
+ * 末尾を捨てる単純な切り方をしないのは、レポートが 目的→方法→結果→考察 の順に
+ * 進むため、考察がまるごと落ちて「考察と結果の紐づき」軸が測れなくなるから。
+ */
+export function truncate(text, maxLength) {
+  if (text.length <= maxLength) return { text, truncated: false };
+
+  const head = text.slice(0, TRUNCATE_HEAD_LENGTH);
+  const tail = text.slice(-TRUNCATE_TAIL_LENGTH);
+  return { text: `${head}${TRUNCATE_MARKER}${tail}`, truncated: true };
 }
