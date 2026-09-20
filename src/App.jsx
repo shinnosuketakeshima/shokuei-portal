@@ -1168,7 +1168,11 @@ function AdminGate({ children }) {
     } catch (err) {
       console.error('Error sending password reset email:', err);
     }
-    setNotice('パスワード設定用のメールを送信しました。届かない場合は迷惑メールフォルダもご確認ください。');
+    // 件名をそのまま書いておく。このプロジェクトはメールテンプレートの編集が
+    // Firebase 側で禁止されていて（EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED）、
+    // 既定の「〜を再設定してください」という文面を変えられない。
+    // 初回設定の人が「再設定」に戸惑わないよう、アプリ側で先回りして説明する。
+    setNotice('メールを送信しました。件名は「jumonji-shokuei-portal のパスワードを再設定してください」です。初めての方もこのメールから設定できます（「再設定」と書かれていますが問題ありません）。届かない場合は迷惑メールフォルダもご確認ください。');
   };
 
   const handleLogin = async (e) => {
@@ -1208,12 +1212,25 @@ function AdminGate({ children }) {
           </button>
         </form>
         <button type="button" onClick={handlePasswordReset}
-          className="mt-3 text-xs text-blue-600 hover:text-blue-800 font-medium">
+          className="mt-4 w-full border border-blue-200 text-blue-700 rounded-lg px-4 py-2 text-sm font-bold hover:bg-blue-50 transition-colors">
           パスワードを設定・再設定する
         </button>
-        <p className="mt-1 text-xs text-slate-400">
-          初めてご利用の方も、上のメールアドレス欄に入力してこちらを押してください。
-        </p>
+
+        <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500 leading-relaxed">
+          <p className="font-bold text-slate-700 mb-1">初めてご利用の方へ</p>
+          <ol className="list-decimal list-inside space-y-1">
+            <li>上の欄に学内メールアドレスを入力します</li>
+            <li>「パスワードを設定・再設定する」を押します</li>
+            <li>届いたメールのリンクから、ご自分でパスワードを決めます</li>
+          </ol>
+          <p className="mt-2">
+            メールの件名は「jumonji-shokuei-portal のパスワードを再設定してください」です。
+            初回でも「再設定」と表示されますが、そのままお使いいただけます。
+          </p>
+          <p className="mt-1">
+            アカウントが未作成の場合はメールが届きません。学科の担当者にご連絡ください。
+          </p>
+        </div>
       </div>
     );
   }
