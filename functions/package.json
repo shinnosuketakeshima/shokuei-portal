@@ -1,0 +1,14 @@
+{
+  "name": "shokuei-portal-functions",
+  "description": "提出物 記述チェック用の TypeSafe API 中継",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "^0.6.0",
+    "firebase-functions": "^7.4.0"
+  }
+}
