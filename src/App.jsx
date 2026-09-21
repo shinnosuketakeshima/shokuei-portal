@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { Home, Users, FileText, Settings, Bell, Search, LayoutDashboard, ExternalLink, FolderKanban, Calendar, FileEdit, CheckCircle2, Megaphone, Trash2, Printer, ClipboardList, Globe, MessageCircle, FileSearch } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
@@ -1246,6 +1246,26 @@ function AdminGate({ children }) {
   );
 }
 
+// 受け皿のルート。メールソフトがリンクの末尾に追跡パラメータを「?」ではなく
+// 「&」で直結することがあり（例: /writing-check&source=gmail&ust=...）、
+// そのままでは存在しないパスになって画面が真っ白になる。
+// 「&」以降を捨てて既知のページに一致すればそこへ送り、駄目ならダッシュボードへ。
+const KNOWN_PATHS = [
+  '/application',
+  '/application-general',
+  '/application-printer',
+  '/applications-list',
+  '/general-list',
+  '/assistant-requests',
+  '/writing-check'
+];
+
+function NotFoundRedirect() {
+  const { pathname } = useLocation();
+  const cleaned = pathname.split('&')[0].replace(/\/+$/, '');
+  return <Navigate to={KNOWN_PATHS.includes(cleaned) ? cleaned : '/'} replace />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -1336,6 +1356,7 @@ function App() {
                   </AdminGate>
                 </div>
               } />
+              <Route path="*" element={<NotFoundRedirect />} />
             </Routes>
           </main>
         </div>
