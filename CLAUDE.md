@@ -49,7 +49,7 @@ One Cloud Function lives in `functions/` — everything else is client-side.
 | `/applications-list` | `ConcurrentWorksList` | Lists part-time lecturer entries |
 | `/general-list` | `GeneralWorksList` | Lists general concurrent-work entries |
 | `/assistant-requests` | `AssistantRequestPage` | 助手室依頼台帳 (create / edit / export) |
-| `/writing-check` | `WritingCheckPage` | 提出物 記述チェック (admin-only; upload → analyze → export) |
+| `/writing-check` | `WritingCheckPage` | 提出物 記述チェック (sign-in required; upload → analyze → export) |
 
 ### Firebase
 
@@ -62,10 +62,13 @@ One Cloud Function lives in `functions/` — everything else is client-side.
 **This is a public repo and the Firebase Web config is public — `firestore.rules` is the ONLY access control. Do not weaken it.**
 
 - `concurrent_works` holds personal/employment data. Rules: `create` is public but validated (`applicationType` must be `part-time`/`general`, `createdAt` must equal the server timestamp); `read`/`delete` require `isAdmin()`; `update` is denied.
-- **Never treat "authenticated" as "authorized."** Enabling Firebase Authentication on 2026-09-20 briefly made `concurrent_works` readable and deletable by anyone, because client-side sign-up is on by default and the rules only checked `request.auth != null` — a stranger could register in seconds and read every submission. Authorization is now an explicit email allowlist in `isAdmin()` (`firestore.rules`) and `ALLOWED_EMAILS` (`functions/index.js`). **Keep those two lists in sync.**
-- Sign-up is disabled in the console (Authentication → Settings → User actions). That switch alone is not the defense — it can be toggled back — so the allowlists stay regardless. Adding an email to them does not create the account; do that in the console too.
+- **Never treat "authenticated" as "authorized."** Enabling Firebase Authentication on 2026-09-20 briefly made `concurrent_works` readable and deletable by anyone, because client-side sign-up is on by default and the rules only checked `request.auth != null` — a stranger could register in seconds and read every submission. Every signed-in user is now checked against an explicit rule, never against `request.auth != null` alone.
+- **The two checks are deliberately different scopes — do not sync them.**
+  - `isAdmin()` (`firestore.rules`) is an **email allowlist of the 兼務申請 reviewers** (currently 2 people). It guards personal/employment data. Adding a name here hands that person every submission, so it grows only when someone actually joins the review.
+  - `ALLOWED_EMAIL_DOMAIN` (`functions/index.js`) is a **domain check (`@jumonji-u.ac.jp`)** for `analyzeSubmission`. 記述チェック is meant for every teacher in the department, and a domain check means no redeploy each time one is added. It is safe to be broader because the function only spends the API key — it reads no stored data.
+  - Onboarding a teacher for 記述チェック therefore needs **no code change and no deploy**: create the account in the console and that is all. `AdminGate` only checks that someone is signed in, so they can reach `/applications-list` too — the Firestore rules deny the fetch, which is the intended outcome, not a bug.
+- Sign-up is disabled in the console (Authentication → Settings → User actions). That switch alone is not the defense — it can be toggled back — so both checks stay regardless. Neither one creates an account; accounts are made in the console (Authentication → Users). No initial password is handed out: the admin sets a throwaway one and the teacher chooses their own via 「パスワードを設定・再設定する」 on the login screen (`AdminGate`, `src/App.jsx`).
 - Submission forms stay public (no login). The two list pages (`ConcurrentWorksList`/`GeneralWorksList`) are wrapped in `AdminGate` (email/password Firebase Auth) and must never fetch without an authenticated user.
-- Reviewer accounts are created manually in the Firebase console (Authentication → Users). There is no public sign-up.
 - `assistant_requests` allows open read/write by design (shared worklog: requesters add, assistants update status) — keep this scoped to that collection only.
   - **This is an accepted risk, not an oversight.** A 2026-09-20 audit confirmed all 146 documents (staff names, task details, notes) are readable — and writable and deletable — by anyone holding the public web API key, which is in the shipped bundle. The owner reviewed the options and chose to keep the no-login workflow. Do not "fix" this without asking.
   - Revisit if the log ever starts holding student names, evaluations, or anything else you would not put on a public page.
@@ -76,14 +79,15 @@ One Cloud Function lives in `functions/` — everything else is client-side.
 
 ### 提出物 記述チェック (`/writing-check`)
 
-Admin-only tool that reads a UNIPA/manaba submission export (`.xlsx`), scores each essay on four rubric axes via the TypeSafe JEV model, and shows the results next to manaba's own `AI疑いスコア`/`AI判定` columns.
+Sign-in-required tool (any `@jumonji-u.ac.jp` account, not just the 兼務申請 reviewers) that reads a UNIPA/manaba submission export — `.xlsx` for 感想文, `.zip` for 実験レポート — scores each piece on six rubric axes via the TypeSafe JEV model, and shows the results next to manaba's own `AI疑いスコア`/`AI判定` columns. The file extension picks the mode; the axes differ per mode (`MODES` in `src/writingCheck/constants.js`).
 
-- **`api.typesafe.ai` is origin-allowlisted** and rejects browser requests (`400 Disallowed CORS origin`). All calls go through the `analyzeSubmission` callable in `functions/index.js` (region `asia-northeast1`), which requires `request.auth` so only signed-in reviewers can spend the API key.
+- **`api.typesafe.ai` is origin-allowlisted** and rejects browser requests (`400 Disallowed CORS origin`). All calls go through the `analyzeSubmission` callable in `functions/index.js` (region `asia-northeast1`), which requires `request.auth` **and** a `@jumonji-u.ac.jp` address (`ALLOWED_EMAIL_DOMAIN`) so only departmental accounts can spend the API key.
 - `src/firebase.js` exports `functions` with the region pinned. Omitting the region silently targets `us-central1`.
 - **Only the essay body is sent.** `src/writingCheck/anonymize.js` strips names, student IDs and contact details first; names are matched as 姓+名 as a unit — never a standalone surname, which would corrupt ordinary words (e.g. a roster entry `原 和美` turning 「原理」 into 「［氏名］理」).
 - Rubric definitions live server-side in `functions/questions.js` so clients cannot substitute their own prompts. `SCORE_MAX` is duplicated in `src/writingCheck/constants.js` — keep both in sync.
 - **Nothing is written to Firestore.** Results stay in memory and leave only via the xlsx export, so `firestore.rules` needs no changes.
 - The UI must never show a binary "AI 作成" verdict. The composite is labelled 要確認度（参考） and is a sort key for human review, not a judgement.
+- The table shows only the `primary` axes (the 人間らしい pair) by default; the AI 側 axes and 正確さ fold behind 「残りのN列も表示する」. They are not lost — `interpret.js` puts them into the 読み解き sentence when they fire, which is why the columns were redundant. All six axes stay in the detail modal and in the xlsx export, and all six still feed 要確認度, so past exports remain comparable.
 
 ### Document generation
 
