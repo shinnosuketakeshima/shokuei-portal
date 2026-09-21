@@ -8,7 +8,7 @@ import { buildPayloads } from './writingCheck/anonymize.js';
 import { runAnalysis } from './writingCheck/analyzeClient.js';
 import { buildResultRows, sortRows } from './writingCheck/scoring.js';
 import { buildWritingCheckWorkbook } from './writingCheck/exportXlsx.js';
-import { MAX_BODY_LENGTH, USD_PER_MTOK, MODES, DEFAULT_MODE } from './writingCheck/constants.js';
+import { MAX_BODY_LENGTH, USD_PER_MTOK, MODES, DEFAULT_MODE, visibleAxesOf } from './writingCheck/constants.js';
 import WritingCheckUploader from './writingCheck/WritingCheckUploader';
 import WritingCheckTable from './writingCheck/WritingCheckTable';
 import WritingCheckDetailModal from './writingCheck/WritingCheckDetailModal';
@@ -27,6 +27,8 @@ export default function WritingCheckPage() {
   const [error, setError] = useState(null);
   const [sortKey, setSortKey] = useState('studentId');
   const [sortDirection, setSortDirection] = useState('asc');
+  // 既定では人間側の2軸だけを出す。残りの軸は読み解き文に出るので、開きたいときだけ開く。
+  const [showAllAxes, setShowAllAxes] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   // 読み込んだファイルに既存のAI判定列があったか。無ければ関連する列と ⚑ を出さない。
@@ -34,6 +36,9 @@ export default function WritingCheckPage() {
 
   // 中断は再レンダリングを挟まずワーカーから読む必要があるので ref で持つ。
   const stopRequested = useRef(false);
+  // 解析後に一度だけ要確認度順へ並べ替えるための記録。毎回やると、
+  // 教員が自分で選んだ並び順を実行のたびに奪ってしまう。
+  const autoSorted = useRef(false);
 
   const mode = MODES[modeKey];
 
@@ -66,6 +71,9 @@ export default function WritingCheckPage() {
   const failedCount = analyses.filter((a) => a?.status === 'error').length;
   const totalTokens = resultRows.reduce((sum, row) => sum + row.inputTokens, 0);
   const skippedRows = sourceRows.filter((row) => row.extractError);
+  // トグルの文言に出す「いま畳んでいる列数」。軸の数はモードで変わる。
+  const hiddenColumnCount =
+    mode.axes.length - visibleAxesOf(mode, false).length + (hasSourceVerdict ? 2 : 0);
   const duplicateRows = sourceRows.filter((row) => row.duplicateOf?.length > 0);
 
   const handleFileChange = async (event) => {
@@ -82,6 +90,11 @@ export default function WritingCheckPage() {
     setError(null);
     setAnalyses([]);
     setSelectedRow(null);
+    autoSorted.current = false;
+    // 軸はモードで入れ替わる。前のファイルの軸で並べたまま別種のファイルを読み込むと、
+    // 存在しない列で並べ替えることになり、表が黙って未ソートになる。
+    setSortKey('studentId');
+    setSortDirection('asc');
     setIsLoadingFile(true);
     setLoadProgress({ done: 0, total: 0 });
 
@@ -142,6 +155,13 @@ export default function WritingCheckPage() {
         });
         return next;
       });
+      // 結果が出たら要確認度の高い順にする。学籍番号順のままだと、
+      // 結局いつも手で並べ替えることになる。
+      if (!autoSorted.current && results.some((result) => result?.status === 'ok')) {
+        autoSorted.current = true;
+        setSortKey('review');
+        setSortDirection('desc');
+      }
     } catch (err) {
       console.error('Error running writing check:', err);
       setError('解析の実行に失敗しました。');
@@ -174,6 +194,23 @@ export default function WritingCheckPage() {
     } else {
       setSortKey(key);
       setSortDirection('asc');
+    }
+  };
+
+  // 詳細列を畳むとき、隠れる列で並べ替えていたら要確認度順へ戻す。
+  // そのままだと、画面に無い列の順で並んでいて理由が分からなくなる。
+  const handleToggleAxes = (next) => {
+    setShowAllAxes(next);
+    if (next) return;
+    const visibleKeys = new Set([
+      'studentId',
+      'kanjiName',
+      'review',
+      ...visibleAxesOf(mode, false).map((axis) => axis.key)
+    ]);
+    if (!visibleKeys.has(sortKey)) {
+      setSortKey('review');
+      setSortDirection('desc');
     }
   };
 
@@ -267,18 +304,33 @@ export default function WritingCheckPage() {
               </div>
             </div>
 
-            <p className="text-xs text-slate-500">
-              「要確認度」は<strong>この集団の中での順位</strong>です。1番目＝最も要確認度が高いというだけの並べ替え指標で、
-              AI 利用の確率ではありません。各軸の見出しにある「↑人間らしい / ↑AI的」は、スコアが高いときの向きを示します。
-              行をクリックすると本文と内訳が開きます。列見出しのクリックで並び替えできます。
-              {hasSourceVerdict && ' ⚑ は元データの疑いスコアと順位が大きく食い違う行です。'}
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="text-xs text-slate-500 flex-1 min-w-[20rem]">
+                「要確認度」は<strong>この集団の中での順位</strong>です。1番目＝最も要確認度が高いというだけの並べ替え指標で、
+                AI 利用の確率ではありません。各軸の見出しにある「↑人間らしい / ↑AI的」は、スコアが高いときの向きを示します。
+                表に出していない軸（整いすぎ・無難すぎなど）は、該当するときだけ「読み解き」に文章で出ます。
+                行をクリックすると本文と全軸の内訳が開きます。列見出しのクリックで並び替えできます。
+                {hasSourceVerdict && ' ⚑ は元データの疑いスコアと順位が大きく食い違う行です。'}
+              </p>
+              {hiddenColumnCount > 0 && (
+                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer shrink-0 select-none">
+                  <input
+                    type="checkbox"
+                    checked={showAllAxes}
+                    onChange={(event) => handleToggleAxes(event.target.checked)}
+                    className="w-4 h-4 accent-cyan-700"
+                  />
+                  残りの {hiddenColumnCount} 列も表示する
+                </label>
+              )}
+            </div>
 
             <div className="max-h-[70vh] min-h-[16rem] overflow-auto border border-slate-200 rounded-lg">
               <WritingCheckTable
                 rows={visibleRows}
                 mode={mode}
                 hasSourceVerdict={hasSourceVerdict}
+                showAllAxes={showAllAxes}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onSort={handleSort}

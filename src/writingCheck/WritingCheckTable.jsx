@@ -1,10 +1,12 @@
 // src/writingCheck/WritingCheckTable.jsx
 import { AlertCircle } from 'lucide-react';
-import { SCORE_MAX } from './constants.js';
+import { SCORE_MAX, visibleAxesOf } from './constants.js';
 
 const format = (value) => (value == null ? '—' : value.toFixed(2));
 
 // スコアの帯。数値だけだと差が読み取りにくいので、背景の濃さでも示す。
+// 信頼度は表に出さない。1行あたりの数字が倍になり、肝心のスコアが埋もれるため、
+// hover の吹き出しと詳細（行クリック）に置く。
 function ScoreCell({ entry }) {
   if (!entry) return <td className="px-3 py-2 text-slate-400">—</td>;
   const ratio = entry.score / SCORE_MAX;
@@ -13,11 +15,9 @@ function ScoreCell({ entry }) {
       <span
         className="inline-block px-2 py-0.5 rounded-md font-medium text-slate-900"
         style={{ backgroundColor: `rgba(8, 145, 178, ${0.08 + ratio * 0.35})` }}
+        title={`信頼度 ${format(entry.confidence)}`}
       >
         {format(entry.score)}
-      </span>
-      <span className="ml-1.5 text-xs text-slate-400" title="信頼度">
-        {format(entry.confidence)}
       </span>
     </td>
   );
@@ -37,8 +37,20 @@ function RankCell({ row }) {
   );
 }
 
-export default function WritingCheckTable({ rows, mode, hasSourceVerdict, sortKey, sortDirection, onSort, onRowClick }) {
-  const axes = mode.axes;
+export default function WritingCheckTable({
+  rows,
+  mode,
+  hasSourceVerdict,
+  showAllAxes,
+  sortKey,
+  sortDirection,
+  onSort,
+  onRowClick
+}) {
+  const axes = visibleAxesOf(mode, showAllAxes);
+  // 元データの判定列は、読み込んだファイルに入っていて、かつ詳細表示のときだけ出す。
+  // ファイル提出（zip）の名簿にはこの列が無く、常に空欄になって場所を取るだけになる。
+  const withSource = hasSourceVerdict && showAllAxes;
   const columns = [
     { key: 'studentId', label: '学籍番号' },
     { key: 'kanjiName', label: '氏名' },
@@ -50,9 +62,7 @@ export default function WritingCheckTable({ rows, mode, hasSourceVerdict, sortKe
       direction: axis.direction,
       title: `${axis.label}：${axis.description}`
     })),
-    // 元データの判定列は、読み込んだファイルに入っていたときだけ出す。
-    // ファイル提出（zip）の名簿にはこの列が無く、常に空欄になって場所を取るだけになる。
-    ...(hasSourceVerdict
+    ...(withSource
       ? [
           { key: 'sourceScore', label: '元データ 疑いスコア' },
           { key: 'sourceVerdict', label: '元データ 判定' }
@@ -108,6 +118,8 @@ export default function WritingCheckTable({ rows, mode, hasSourceVerdict, sortKe
                   （一部省略）
                 </span>
               )}
+              {/* ⚑ は元データの列を畳んでいても出す。列ではなく「読んで確かめる行」の目印なので、
+                  詳細表示と一緒に消すと見落としにつながる。 */}
               {hasSourceVerdict && row.divergent && (
                 <span
                   className="ml-1.5 text-amber-600"
@@ -121,7 +133,7 @@ export default function WritingCheckTable({ rows, mode, hasSourceVerdict, sortKe
             {axes.map((axis) => (
               <ScoreCell key={axis.key} entry={row.scores?.[axis.key]} />
             ))}
-            {hasSourceVerdict && (
+            {withSource && (
               <>
                 <td className="px-3 py-2 whitespace-nowrap text-slate-500">{row.sourceScore || '—'}</td>
                 <td className="px-3 py-2 whitespace-nowrap text-slate-500">{row.sourceVerdict || '—'}</td>

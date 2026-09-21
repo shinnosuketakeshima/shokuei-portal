@@ -33,8 +33,10 @@ export function interpret(scores, axes) {
   }
 
   // 軸が6つあるので、該当を全部並べると一文が読めない長さになる。
-  // axes の定義順（人間側の軸が先）に3つまで拾う。
-  let text = parts.length > 0 ? `${parts.slice(0, 3).join('、')}。` : '各軸とも中間で、際立った特徴はない。';
+  // axes の定義順（人間側の軸が先）に4つまで拾う。3つだと、人間側の2軸が両方
+  // 低いときに AI 側の兆候が1つしか残らない。表では AI 側の軸を既定で畳んでいるので、
+  // この文が唯一の手がかりになる。
+  let text = parts.length > 0 ? `${parts.slice(0, 4).join('、')}。` : '各軸とも中間で、際立った特徴はない。';
   for (const warning of warnings) text += ` ${warning}`;
 
   const confidences = values.map(({ entry }) => entry?.confidence).filter((c) => c != null);

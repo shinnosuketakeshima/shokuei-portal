@@ -6,8 +6,12 @@ export const SCORE_MAX = 3;
 
 // 軸の共通フィールド:
 //   direction  スコアが高いときにどちら寄りに見えるか。null は判定材料にしない参考軸
+//   primary    表に常時出す軸。false の軸は「詳細列」を開いたときだけ出す
 //   lowPhrase  / highPhrase  読み解き文の材料。null なら言及しない
 //   warnLow    低いときだけ必ず添える一文
+//
+// primary を人間側の2軸だけに付けているのは、AI 側の3軸と正確さは高い（低い）ときに
+// 読み解き文へ必ず出るため、数値列と二重になるから。数字を減らしても信号は落ちない。
 //
 // 感想文とレポートで軸を分けるのは、文章の種類によって「良い書き方」が違うため。
 // 実験レポートは型どおりに書くのが正しいので、文体の定型性は判定材料にならない。
@@ -60,6 +64,7 @@ const OVER_EXPLANATION = {
 const REFLECTION_AXES = [
   {
     key: 'lecture_specificity',
+    primary: true,
     label: '授業固有の具体性',
     short: '具体性',
     direction: '人間らしい',
@@ -69,6 +74,7 @@ const REFLECTION_AXES = [
   },
   {
     key: 'personal_reflection',
+    primary: true,
     label: '自分の経験・反応',
     short: '経験',
     direction: '人間らしい',
@@ -85,6 +91,7 @@ const REFLECTION_AXES = [
 const REPORT_AXES = [
   {
     key: 'observed_specifics',
+    primary: true,
     label: '実測値・固有データへの言及',
     short: '実測値',
     direction: '人間らしい',
@@ -94,6 +101,7 @@ const REPORT_AXES = [
   },
   {
     key: 'discussion_grounding',
+    primary: true,
     label: '考察と結果の紐づき',
     short: '考察',
     direction: '人間らしい',
@@ -140,6 +148,11 @@ export const MODES = {
 };
 
 export const DEFAULT_MODE = 'reflection';
+
+// 表に既定で出す軸。primary 以外は「残りの列も表示する」を入れたときだけ出す。
+export function visibleAxesOf(mode, showAllAxes) {
+  return showAllAxes ? mode.axes : mode.axes.filter((axis) => axis.primary);
+}
 
 // 読み込む列。ヘッダー名で探すので、出力側で列順が変わっても動く。
 // AI疑いスコア / AI判定 は元ファイルに最初から入っている値で、この画面では
