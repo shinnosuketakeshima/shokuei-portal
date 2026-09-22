@@ -18,10 +18,12 @@ const MAX_ATTEMPTS = 3;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function analyzeOne(payload, courseContext, mode) {
+async function analyzeOne(payload, courseContext, mode, customRubricText) {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
-      const { data } = await callAnalyze({ text: payload.text, courseContext, mode });
+      const req = { text: payload.text, courseContext, mode };
+      if (customRubricText) req.customRubricText = customRubricText;
+      const { data } = await callAnalyze(req);
       return {
         status: 'ok',
         answers: data.answers,
@@ -43,9 +45,9 @@ async function analyzeOne(payload, courseContext, mode) {
  * 1件の失敗で全体を止めず、行ごとに成否を記録する。
  *
  * @param {Array} payloads buildPayloads() の戻り値（匿名化済み本文だけを持つ）
- * @param {{courseContext: string, onProgress: Function, shouldStop: Function}} options
+ * @param {{courseContext: string, mode: string, customRubricText?: string, onProgress: Function, shouldStop: Function}} options
  */
-export async function runAnalysis(payloads, { courseContext, mode, onProgress, shouldStop }) {
+export async function runAnalysis(payloads, { courseContext, mode, customRubricText, onProgress, shouldStop }) {
   const results = new Array(payloads.length).fill(null);
   let cursor = 0;
   let completed = 0;
@@ -55,7 +57,7 @@ export async function runAnalysis(payloads, { courseContext, mode, onProgress, s
       if (shouldStop?.()) return;
       const index = cursor;
       cursor += 1;
-      results[index] = await analyzeOne(payloads[index], courseContext, mode);
+      results[index] = await analyzeOne(payloads[index], courseContext, mode, customRubricText);
       completed += 1;
       onProgress?.(completed, payloads.length);
     }

@@ -19,6 +19,7 @@ export default function WritingCheckPage() {
   const [modeKey, setModeKey] = useState(DEFAULT_MODE);
   const [courseContext, setCourseContext] = useState('');
   const [extraNames, setExtraNames] = useState('');
+  const [customRubricText, setCustomRubricText] = useState('');
   const [analyses, setAnalyses] = useState([]);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [loadProgress, setLoadProgress] = useState({ done: 0, total: 0 });
@@ -40,7 +41,53 @@ export default function WritingCheckPage() {
   // 教員が自分で選んだ並び順を実行のたびに奪ってしまう。
   const autoSorted = useRef(false);
 
-  const mode = MODES[modeKey];
+  const SCORE_MAX = 3;
+
+  // カスタムルーブリックから動的に mode を生成
+  const buildCustomMode = (rubricText, baseMode) => {
+    if (!rubricText.trim()) return baseMode;
+
+    // 簡単なパース：【S】【A】【B】【C】の行数を数える
+    const lines = rubricText.split('\n').filter((l) => l.trim());
+    const itemCount = lines.filter((l) => l.match(/^【[SABC]】/)).length / 4;
+
+    if (itemCount <= 0) return baseMode;
+
+    const axes = [];
+    for (let i = 0; i < Math.floor(itemCount); i++) {
+      axes.push({
+        key: `custom_${i}`,
+        label: `評価項目 ${i + 1}`,
+        short: `項目${i + 1}`,
+        direction: null,
+        description: '',
+        primary: i < 2,
+        lowPhrase: null,
+        highPhrase: null,
+        warnLow: null
+      });
+    }
+
+    const weights = axes.slice(0, 2).map((ax, idx) => ({
+      key: ax.key,
+      weight: 0.5 / Math.max(2, axes.length),
+      invert: false
+    }));
+
+    return {
+      key: 'custom',
+      label: 'ユーザー指定ルーブリック',
+      source: baseMode.source,
+      axes,
+      weights
+    };
+  };
+
+  const baseMode = MODES[modeKey];
+  const mode = useMemo(() => {
+    if (!customRubricText.trim()) return baseMode;
+    return buildCustomMode(customRubricText, baseMode);
+  }, [customRubricText, baseMode]);
 
   const extraNameList = useMemo(
     () => extraNames.split(/[,、]/).map((name) => name.trim()).filter(Boolean),
@@ -143,6 +190,7 @@ export default function WritingCheckPage() {
         {
           courseContext: courseContext.trim(),
           mode: modeKey,
+          customRubricText: customRubricText.trim(),
           onProgress: (done, total) => setProgress({ done, total }),
           shouldStop: () => stopRequested.current
         }
@@ -263,6 +311,8 @@ export default function WritingCheckPage() {
           onCourseContextChange={setCourseContext}
           extraNames={extraNames}
           onExtraNamesChange={setExtraNames}
+          customRubricText={customRubricText}
+          onCustomRubricTextChange={setCustomRubricText}
           onFileChange={handleFileChange}
           onRun={handleRun}
           onRunOne={handleRunOne}

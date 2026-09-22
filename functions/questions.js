@@ -139,3 +139,144 @@ export function buildQuestions(courseContext, mode) {
 
 // criteria の段数。クライアント側の正規化（score / SCORE_MAX）と必ず揃える。
 export const SCORE_MAX = 3;
+
+// カスタムルーブリックのパース・検証・質問生成
+
+const CUSTOM_RUBRIC_MAX_ITEMS = 5;
+const CUSTOM_RUBRIC_MAX_LEVEL_LENGTH = 500;
+const CUSTOM_RUBRIC_MAX_TOTAL_LENGTH = 2000;
+
+export function parseCustomRubric(text) {
+  if (!text || typeof text !== 'string') {
+    return { items: [], errors: ['ルーブリックが空です。'] };
+  }
+
+  const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+  if (lines.length === 0) {
+    return { items: [], errors: ['ルーブリックが空です。'] };
+  }
+
+  const items = [];
+  let currentItem = null;
+  const errors = [];
+
+  for (const line of lines) {
+    // 「評価方法」で始まる行は無視（その行以降も）
+    if (line.includes('評価方法')) break;
+
+    // 【S】【A】【B】【C】のいずれかで始まる行
+    const levelMatch = line.match(/^【([SABC])】(.*)$/);
+    if (levelMatch) {
+      const level = levelMatch[1];
+      const text = levelMatch[2].trim();
+      if (!currentItem) {
+        errors.push('評価項目がないまま評価レベルが出現しました。');
+        continue;
+      }
+      currentItem[level] = text;
+    } else if (/^【/.test(line)) {
+      // 【】で囲まれているが SABC ではない → コード部分の可能性
+      // 例：【対自己-2】科学的な思考・判断
+      const codeMatch = line.match(/^【([^】]+)】(.*)$/);
+      if (codeMatch && currentItem && !currentItem.S) {
+        // 前の項目がまだ【S】を受け取っていなければ、これは新しい項目
+        if (items.length > 0 || (currentItem && currentItem.S)) {
+          items.push(currentItem);
+        }
+        const code = codeMatch[1];
+        const name = codeMatch[2].trim();
+        currentItem = { code, name, S: null, A: null, B: null, C: null, description: '' };
+      }
+    } else {
+      // 通常のテキスト行
+      if (!currentItem) {
+        // 新しい項目の開始（コードなし形式）
+        currentItem = { name: line, S: null, A: null, B: null, C: null, description: '' };
+      } else if (!currentItem.S) {
+        // 項目名の後で【S】が来る前の行は説明文
+        if (currentItem.description) {
+          currentItem.description += ' ' + line;
+        } else {
+          currentItem.description = line;
+        }
+      }
+    }
+  }
+
+  if (currentItem && currentItem.S) {
+    items.push(currentItem);
+  } else if (currentItem) {
+    errors.push('最後の項目が完全ではありません（【S】【A】【B】【C】が揃っていません）。');
+  }
+
+  return { items, errors };
+}
+
+export function validateRubric(rubric) {
+  const errors = [];
+
+  if (!rubric || !Array.isArray(rubric.items)) {
+    errors.push('ルーブリック構造が不正です。');
+    return { valid: false, errors };
+  }
+
+  if (rubric.items.length === 0) {
+    errors.push('ルーブリック項目がありません。');
+    return { valid: false, errors };
+  }
+
+  if (rubric.items.length > CUSTOM_RUBRIC_MAX_ITEMS) {
+    errors.push(`ルーブリック項目は${CUSTOM_RUBRIC_MAX_ITEMS}個までです。`);
+  }
+
+  let totalLength = 0;
+  for (let i = 0; i < rubric.items.length; i++) {
+    const item = rubric.items[i];
+    if (!item.name || typeof item.name !== 'string') {
+      errors.push(`項目 ${i + 1}: 評価項目名がありません。`);
+      continue;
+    }
+    if (!item.levels || !Array.isArray(item.levels) || item.levels.length !== 4) {
+      errors.push(`項目 ${i + 1}「${item.name}」: 【S】【A】【B】【C】が揃っていません。`);
+      continue;
+    }
+    for (const [idx, level] of item.levels.entries()) {
+      if (!level || typeof level !== 'string') {
+        const levelNames = ['S', 'A', 'B', 'C'];
+        errors.push(`項目 ${i + 1}「${item.name}」の【${levelNames[idx]}】が空です。`);
+        continue;
+      }
+      if (level.length > CUSTOM_RUBRIC_MAX_LEVEL_LENGTH) {
+        const levelNames = ['S', 'A', 'B', 'C'];
+        errors.push(`項目 ${i + 1}「${item.name}」の【${levelNames[idx]}】が長すぎます（${CUSTOM_RUBRIC_MAX_LEVEL_LENGTH}文字まで）。`);
+      }
+      totalLength += level.length;
+    }
+  }
+
+  if (totalLength > CUSTOM_RUBRIC_MAX_TOTAL_LENGTH) {
+    errors.push(`ルーブリック全体が長すぎます（${CUSTOM_RUBRIC_MAX_TOTAL_LENGTH}文字まで）。`);
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+export function buildCustomRubricQuestions(rubric, courseContext) {
+  if (!rubric || !Array.isArray(rubric.items) || rubric.items.length === 0) {
+    throw new Error('Invalid custom rubric');
+  }
+
+  const intro = contextLine(courseContext, 'ユーザー指定のルーブリックで採点');
+  const questions = {};
+
+  for (let i = 0; i < rubric.items.length; i++) {
+    const item = rubric.items[i];
+    const key = `custom_${i}`;
+    questions[key] = score(
+      `${intro}「${item.name}」に関して、この文章を以下の4段階で評価してください。`,
+      item.levels
+    );
+  }
+
+  return questions;
+}

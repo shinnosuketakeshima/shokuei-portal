@@ -16,6 +16,8 @@ export default function WritingCheckUploader({
   onCourseContextChange,
   extraNames,
   onExtraNamesChange,
+  customRubricText,
+  onCustomRubricTextChange,
   onFileChange,
   onRun,
   onRunOne,
@@ -26,6 +28,7 @@ export default function WritingCheckUploader({
   const [showPreview, setShowPreview] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [useCustomRubric, setUseCustomRubric] = useState(false);
 
   // ドラッグ中の枠線表示は dragenter/dragleave が子要素をまたぐたびに発火するため、
   // 深さを数えて 0 になったときだけ解除する。
@@ -164,6 +167,58 @@ export default function WritingCheckUploader({
                 学生の氏名はファイルから自動で伏せます。姓だけを入れると本文中の普通の語まで置き換わることがあるため、姓名をまとめて入力してください。
               </p>
             </div>
+
+            <div>
+              <fieldset>
+                <legend className="text-xs font-bold text-slate-700 mb-2">採点基準</legend>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="rubric-mode"
+                      checked={!useCustomRubric}
+                      onChange={() => {
+                        setUseCustomRubric(false);
+                        onCustomRubricTextChange('');
+                      }}
+                      disabled={isRunning}
+                      className="w-4 h-4 accent-cyan-700"
+                    />
+                    <span className="text-sm text-slate-700">デフォルト採点基準を使う</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="rubric-mode"
+                      checked={useCustomRubric}
+                      onChange={() => setUseCustomRubric(true)}
+                      disabled={isRunning}
+                      className="w-4 h-4 accent-cyan-700"
+                    />
+                    <span className="text-sm text-slate-700">独自ルーブリックを使う</span>
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+
+            {useCustomRubric && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  ルーブリック（【S】【A】【B】【C】の形式で貼り付け）
+                </label>
+                <textarea
+                  value={customRubricText}
+                  onChange={(e) => onCustomRubricTextChange(e.target.value)}
+                  disabled={isRunning}
+                  placeholder={`評価項目名\n【S】説明\n【A】説明\n【B】説明\n【C】説明\n\n別の評価項目…`}
+                  rows={8}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm sm:text-sm font-mono focus:ring-cyan-500 focus:border-cyan-500"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  最大5項目まで。各項目の説明は500文字以下、合計2000文字以下です。
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">

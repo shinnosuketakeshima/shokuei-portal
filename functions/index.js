@@ -2,7 +2,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { TypeSafeClient, APIError } from '@typesafe-ai/sdk';
-import { buildQuestions, MODES } from './questions.js';
+import { buildQuestions, MODES, parseCustomRubric, validateRubric, buildCustomRubricQuestions } from './questions.js';
 
 const TYPESAFE_API_KEY = defineSecret('TYPESAFE_API_KEY');
 
@@ -70,7 +70,7 @@ export const analyzeSubmission = onCall(
       throw new HttpsError('permission-denied', 'この機能の利用権限がありません。');
     }
 
-    const { text, courseContext, mode } = request.data ?? {};
+    const { text, courseContext, mode, customRubricText } = request.data ?? {};
 
     if (typeof text !== 'string' || text.trim().length === 0) {
       throw new HttpsError('invalid-argument', '本文が空です。');
@@ -87,10 +87,36 @@ export const analyzeSubmission = onCall(
       throw new HttpsError('invalid-argument', '文章の種類の指定が不正です。');
     }
 
+    let questions;
+
+    // カスタムルーブリックの処理
+    if (customRubricText) {
+      const { items, errors: parseErrors } = parseCustomRubric(customRubricText);
+      if (parseErrors.length > 0) {
+        throw new HttpsError('invalid-argument', `ルーブリック解析エラー: ${parseErrors.join(' ')}`);
+      }
+
+      const rubric = { items };
+      const { valid, errors: validationErrors } = validateRubric(rubric);
+      if (!valid) {
+        throw new HttpsError('invalid-argument', `ルーブリック検証エラー: ${validationErrors.join(' ')}`);
+      }
+
+      try {
+        questions = buildCustomRubricQuestions(rubric, courseContext?.trim() || '');
+      } catch (err) {
+        console.error('Failed to build custom rubric questions:', err);
+        throw new HttpsError('invalid-argument', 'ルーブリックから質問を生成できませんでした。');
+      }
+    } else {
+      // デフォルトルーブリック
+      questions = buildQuestions(courseContext?.trim() || '', mode);
+    }
+
     try {
       const result = await getClient().systemOne({
         state: text,
-        questions: buildQuestions(courseContext?.trim() || '', mode)
+        questions
       });
       return { answers: result.answers, usage: result.usage, model: result.model };
     } catch (err) {
