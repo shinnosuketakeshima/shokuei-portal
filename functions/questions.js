@@ -151,9 +151,29 @@ export function parseCustomRubric(text) {
     return { items: [], errors: ['ルーブリックが空です。'] };
   }
 
-  const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+  let lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
   if (lines.length === 0) {
     return { items: [], errors: ['ルーブリックが空です。'] };
+  }
+
+  // テーブルヘッダー行をスキップ（「DP」「評価項目」などを含む行）
+  const headerIndicators = ['DP', '評価項目', '【S】', '【A】', '【B】', '【C】', '評価方法'];
+  let skipCount = 0;
+  for (let i = 0; i < Math.min(lines.length, 3); i++) {
+    const line = lines[i];
+    // ヘッダー行の特徴：複数のヘッダーキーワードを含む、または「・」「　」が多い
+    const hasMultipleHeaders = headerIndicators.filter((h) => line.includes(h)).length >= 2;
+    const hasSeparators = line.match(/・|　{2,}/);
+    if (hasMultipleHeaders || (hasSeparators && i < 2)) {
+      skipCount++;
+    } else {
+      break;
+    }
+  }
+  lines = lines.slice(skipCount);
+
+  if (lines.length === 0) {
+    return { items: [], errors: ['有効なルーブリック項目が見つかりません。'] };
   }
 
   const items = [];
