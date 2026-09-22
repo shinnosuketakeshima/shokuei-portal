@@ -158,31 +158,47 @@ export function parseCustomRubric(text) {
 
   const items = [];
   let currentItem = null;
+  let pendingLevels = [];
   const errors = [];
 
   for (const line of lines) {
-    // 「評価方法」で始まる行は無視（その行以降も）
     if (line.includes('評価方法')) break;
 
-    // 【S】【A】【B】【C】のいずれかで始まる行
     const levelMatch = line.match(/^【([SABC])】(.*)$/);
     if (levelMatch) {
+      // 【S】【A】【B】【C】で始まる行
       const level = levelMatch[1];
-      const text = levelMatch[2].trim();
-      if (!currentItem) {
-        errors.push('評価項目がないまま評価レベルが出現しました。');
-        continue;
-      }
-      currentItem[level] = text;
-    } else if (/^【/.test(line)) {
-      // 【】で囲まれているが SABC ではない → コード部分の可能性
-      // 例：【対自己-2】科学的な思考・判断
-      const codeMatch = line.match(/^【([^】]+)】(.*)$/);
-      if (codeMatch && currentItem && !currentItem.S) {
-        // 前の項目がまだ【S】を受け取っていなければ、これは新しい項目
-        if (items.length > 0 || (currentItem && currentItem.S)) {
-          items.push(currentItem);
+      const description = levelMatch[2].trim();
+
+      if (pendingLevels.length > 0) {
+        // 既に収集中のレベルがある → 現在の item に割り当て
+        if (currentItem) {
+          const levelOrder = ['S', 'A', 'B', 'C'];
+          pendingLevels.forEach((text, idx) => {
+            if (idx < 4) currentItem[levelOrder[idx]] = text;
+          });
+          if (currentItem.S) items.push(currentItem);
+          pendingLevels = [];
         }
+      }
+
+      currentItem = { name: '', S: null, A: null, B: null, C: null, description: '' };
+      currentItem[level] = description;
+    } else if (/^【/.test(line) && !line.match(/^【([SABC])】/)) {
+      // 【対自己-2】のようなコード付き項目名
+      if (currentItem && currentItem.S) {
+        items.push(currentItem);
+      }
+      if (pendingLevels.length > 0 && currentItem) {
+        const levelOrder = ['S', 'A', 'B', 'C'];
+        pendingLevels.forEach((text, idx) => {
+          if (idx < 4) currentItem[levelOrder[idx]] = text;
+        });
+        pendingLevels = [];
+      }
+
+      const codeMatch = line.match(/^【([^】]+)】(.*)$/);
+      if (codeMatch) {
         const code = codeMatch[1];
         const name = codeMatch[2].trim();
         currentItem = { code, name, S: null, A: null, B: null, C: null, description: '' };
@@ -190,23 +206,34 @@ export function parseCustomRubric(text) {
     } else {
       // 通常のテキスト行
       if (!currentItem) {
-        // 新しい項目の開始（コードなし形式）
         currentItem = { name: line, S: null, A: null, B: null, C: null, description: '' };
-      } else if (!currentItem.S) {
-        // 項目名の後で【S】が来る前の行は説明文
+      } else if (!currentItem.S && pendingLevels.length === 0) {
+        // 項目名後の説明文（【S】【A】【B】【C】の前）
         if (currentItem.description) {
           currentItem.description += ' ' + line;
         } else {
           currentItem.description = line;
         }
+      } else {
+        // 【S】【A】【B】【C】がまだ出ていない場合は pending に蓄積
+        pendingLevels.push(line);
       }
     }
   }
 
+  // 最後の item を処理
+  if (pendingLevels.length > 0 && currentItem) {
+    const levelOrder = ['S', 'A', 'B', 'C'];
+    pendingLevels.forEach((text, idx) => {
+      if (idx < 4) currentItem[levelOrder[idx]] = text;
+    });
+  }
+
   if (currentItem && currentItem.S) {
     items.push(currentItem);
-  } else if (currentItem) {
-    errors.push('最後の項目が完全ではありません（【S】【A】【B】【C】が揃っていません）。');
+  } else if (currentItem && (currentItem.A || currentItem.B || currentItem.C)) {
+    // 【S】がなくても他のレベルがあれば追加
+    items.push(currentItem);
   }
 
   return { items, errors };
