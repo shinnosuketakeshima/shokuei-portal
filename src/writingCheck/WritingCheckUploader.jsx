@@ -1,6 +1,7 @@
 // src/writingCheck/WritingCheckUploader.jsx
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Upload, Eye, EyeOff, Play, Info, FlaskConical, Square } from 'lucide-react';
+import { parseCustomRubric } from './parseCustomRubric.js';
 
 export default function WritingCheckUploader({
   fileName,
@@ -29,6 +30,11 @@ export default function WritingCheckUploader({
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [useCustomRubric, setUseCustomRubric] = useState(false);
+
+  const rubricParseResult = useMemo(
+    () => (useCustomRubric && customRubricText.trim() ? parseCustomRubric(customRubricText) : null),
+    [useCustomRubric, customRubricText]
+  );
 
   // ドラッグ中の枠線表示は dragenter/dragleave が子要素をまたぐたびに発火するため、
   // 深さを数えて 0 になったときだけ解除する。
@@ -217,6 +223,27 @@ export default function WritingCheckUploader({
                 <p className="mt-1 text-xs text-slate-500">
                   最大5項目まで。各項目の説明は500文字以下、合計2000文字以下です。
                 </p>
+                {rubricParseResult && (
+                  rubricParseResult.items.length > 0 ? (
+                    <div className="mt-2 text-xs bg-emerald-50 border border-emerald-200 rounded-md p-2 text-emerald-900">
+                      <p className="font-bold">{rubricParseResult.items.length}項目を検出しました</p>
+                      <ul className="mt-0.5 list-disc list-inside">
+                        {rubricParseResult.items.map((item, i) => (
+                          <li key={i}>{item.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs bg-amber-50 border border-amber-300 rounded-md p-2 text-amber-900">
+                      <p className="font-bold">項目を検出できませんでした</p>
+                      <ul className="mt-0.5 space-y-0.5">
+                        {rubricParseResult.errors.map((e, i) => (
+                          <li key={i}>{e}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                )}
               </div>
             )}
           </div>

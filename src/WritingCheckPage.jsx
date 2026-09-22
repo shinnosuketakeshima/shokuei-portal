@@ -4,6 +4,7 @@ import { FileSearch, AlertTriangle, Download, RotateCcw } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { parseUnipaXlsx } from './writingCheck/parseUnipaXlsx.js';
 import { parseSubmissionZip } from './writingCheck/parseSubmissionZip.js';
+import { parseCustomRubric } from './writingCheck/parseCustomRubric.js';
 import { buildPayloads } from './writingCheck/anonymize.js';
 import { runAnalysis } from './writingCheck/analyzeClient.js';
 import { buildResultRows, sortRows } from './writingCheck/scoring.js';
@@ -44,31 +45,28 @@ export default function WritingCheckPage() {
   const SCORE_MAX = 3;
 
   // カスタムルーブリックから動的に mode を生成
+  // parseCustomRubric() のロジックは functions/questions.js の同名関数と同期させること
+  // （サーバー側が実際に採点に使う項目分割と、ここでの表示用項目分割がずれると
+  // 「表示は3項目なのにサーバーの答えは1項目」のような不整合が起きる）。
   const buildCustomMode = (rubricText, baseMode) => {
     if (!rubricText.trim()) return baseMode;
 
-    // 簡単なパース：【S】【A】【B】【C】の行数を数える
-    const lines = rubricText.split('\n').filter((l) => l.trim());
-    const itemCount = lines.filter((l) => l.match(/^【[SABC]】/)).length / 4;
+    const { items } = parseCustomRubric(rubricText);
+    if (items.length === 0) return baseMode;
 
-    if (itemCount <= 0) return baseMode;
+    const axes = items.map((item, i) => ({
+      key: `custom_${i}`,
+      label: item.name,
+      short: item.name.length > 6 ? item.name.slice(0, 6) + '…' : item.name,
+      direction: null,
+      description: '',
+      primary: i < 2,
+      lowPhrase: null,
+      highPhrase: null,
+      warnLow: null
+    }));
 
-    const axes = [];
-    for (let i = 0; i < Math.floor(itemCount); i++) {
-      axes.push({
-        key: `custom_${i}`,
-        label: `評価項目 ${i + 1}`,
-        short: `項目${i + 1}`,
-        direction: null,
-        description: '',
-        primary: i < 2,
-        lowPhrase: null,
-        highPhrase: null,
-        warnLow: null
-      });
-    }
-
-    const weights = axes.slice(0, 2).map((ax, idx) => ({
+    const weights = axes.slice(0, 2).map((ax) => ({
       key: ax.key,
       weight: 0.5 / Math.max(2, axes.length),
       invert: false

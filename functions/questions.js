@@ -146,117 +146,138 @@ const CUSTOM_RUBRIC_MAX_ITEMS = 5;
 const CUSTOM_RUBRIC_MAX_LEVEL_LENGTH = 500;
 const CUSTOM_RUBRIC_MAX_TOTAL_LENGTH = 2000;
 
+// src/writingCheck/parseCustomRubric.js とロジックを同期させること。
+// クライアントは表示用に同じパースを行うが、実際に採点へ使う質問は必ずこちら
+// （サーバー側）で再構築する。
 export function parseCustomRubric(text) {
   if (!text || typeof text !== 'string') {
     return { items: [], errors: ['ルーブリックが空です。'] };
   }
 
-  let lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+  const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
   if (lines.length === 0) {
     return { items: [], errors: ['ルーブリックが空です。'] };
   }
 
-  // テーブルヘッダー行をスキップ
-  // 1. 「・」「　」が多い行（視覚的区切り）
-  // 2. 「DP」「評価項目」「評価方法」を含み、複数の【S】【A】【B】【C】がある行（テーブルヘッダー）
-  let skipCount = 0;
-  for (let i = 0; i < Math.min(lines.length, 3); i++) {
-    const line = lines[i];
-    const isSeparatorLine = line.match(/^・[\s・]*$|^[\s・]+$/);
-    const isHeaderLine =
-      (line.includes('DP') || line.includes('評価項目') || line.includes('評価方法')) &&
-      (line.match(/【[SABC]】/g) || []).length >= 2;
-
-    if (isSeparatorLine || isHeaderLine) {
-      skipCount++;
-    } else {
-      break;
-    }
-  }
-  lines = lines.slice(skipCount);
-
-  if (lines.length === 0) {
-    return { items: [], errors: ['有効なルーブリック項目が見つかりません。'] };
-  }
-
   const items = [];
-  let currentItem = null;
-  let pendingLevels = [];
   const errors = [];
+  let i = 0;
+  let headerMarkersSeen = 0;
+  let dataMarkersSeen = 0;
 
-  for (const line of lines) {
-    if (line.includes('評価方法')) break;
+  // 「評価方法」は配点説明（例:「レポート80%…」）の行にも、Bレベルの説明文中にも
+  // 現れうるので、単独行（他の情報を含まない）場合だけヘッダー／区切りとして扱う。
+  const isEvaluationMethodLine = (line) => line.length <= 40 && line.includes('評価方法') && !line.match(/^【/);
 
-    const levelMatch = line.match(/^【([SABC])】(.*)$/);
-    if (levelMatch) {
-      // 【S】【A】【B】【C】で始まる行
-      const level = levelMatch[1];
-      const description = levelMatch[2].trim();
+  while (i < lines.length) {
+    const line = lines[i];
 
-      if (pendingLevels.length > 0) {
-        // 既に収集中のレベルがある → 現在の item に割り当て
-        if (currentItem) {
-          const levelOrder = ['S', 'A', 'B', 'C'];
-          pendingLevels.forEach((text, idx) => {
-            if (idx < 4) currentItem[levelOrder[idx]] = text;
-          });
-          if (currentItem.S) items.push(currentItem);
-          pendingLevels = [];
-        }
+    if (isEvaluationMethodLine(line)) {
+      i++;
+      continue;
+    }
+
+    // テーブルヘッダー行（DP・評価項目などを含み【S】【A】【B】【C】が複数並ぶ行）はスキップ
+    const markersInLine = (line.match(/【[SABC]】/g) || []).length;
+    if ((line.includes('DP') || line.includes('評価項目')) && markersInLine >= 2) {
+      headerMarkersSeen += markersInLine;
+      i++;
+      continue;
+    }
+    // 視覚的な区切り線（・や空白のみ）
+    if (line.match(/^[・\s]+$/)) {
+      i++;
+      continue;
+    }
+
+    // 項目名の行を探す：【コード】項目名 の形式
+    const codeMatch = line.match(/^【([^】]+)】(.*)$/);
+    const isLevelMarkerLine = codeMatch && codeMatch[1].match(/^[SABC]$/);
+
+    let itemName = null;
+    if (codeMatch && !isLevelMarkerLine) {
+      itemName = codeMatch[2].trim() || codeMatch[1];
+      i++;
+    } else if (!codeMatch && i + 1 < lines.length && lines[i + 1].match(/^【S】/)) {
+      // プレーンテキストの項目名（直後に【S】が続く場合のみ項目名として採用）
+      itemName = line;
+      i++;
+    }
+
+    if (itemName === null) {
+      i++;
+      continue;
+    }
+
+    // 項目名の直後、【S】マーカー付きの行が近くにあるか先読みする
+    let markerStart = -1;
+    for (let k = i; k < Math.min(i + 6, lines.length); k++) {
+      if (lines[k].match(/^【S】/)) {
+        markerStart = k;
+        break;
       }
+      if (lines[k].match(/^【[^SABC]/) || isEvaluationMethodLine(lines[k])) break;
+    }
 
-      currentItem = { name: '', S: null, A: null, B: null, C: null, description: '' };
-      currentItem[level] = description;
-    } else if (/^【/.test(line) && !line.match(/^【([SABC])】/)) {
-      // 【対自己-2】のようなコード付き項目名
-      if (currentItem && currentItem.S) {
-        items.push(currentItem);
+    if (markerStart >= 0) {
+      // 【S】【A】【B】【C】マーカー付きで4段階を集める
+      i = markerStart;
+      const levels = ['', '', '', ''];
+      let count = 0;
+      while (i < lines.length && count < 4) {
+        const m = lines[i].match(/^【([SABC])】(.*)$/);
+        if (!m) break;
+        const idx = ['S', 'A', 'B', 'C'].indexOf(m[1]);
+        levels[idx] = m[2].trim();
+        count++;
+        dataMarkersSeen++;
+        i++;
       }
-      if (pendingLevels.length > 0 && currentItem) {
-        const levelOrder = ['S', 'A', 'B', 'C'];
-        pendingLevels.forEach((text, idx) => {
-          if (idx < 4) currentItem[levelOrder[idx]] = text;
-        });
-        pendingLevels = [];
-      }
-
-      const codeMatch = line.match(/^【([^】]+)】(.*)$/);
-      if (codeMatch) {
-        const code = codeMatch[1];
-        const name = codeMatch[2].trim();
-        currentItem = { code, name, S: null, A: null, B: null, C: null, description: '' };
-      }
-    } else {
-      // 通常のテキスト行
-      if (!currentItem) {
-        currentItem = { name: line, S: null, A: null, B: null, C: null, description: '' };
-      } else if (!currentItem.S && pendingLevels.length === 0) {
-        // 項目名後の説明文（【S】【A】【B】【C】の前）
-        if (currentItem.description) {
-          currentItem.description += ' ' + line;
-        } else {
-          currentItem.description = line;
-        }
+      if (count === 4 && levels.every((l) => l.length > 0)) {
+        items.push({ name: itemName, levels });
       } else {
-        // 【S】【A】【B】【C】がまだ出ていない場合は pending に蓄積
-        pendingLevels.push(line);
+        errors.push(`項目「${itemName}」: 【S】【A】【B】【C】が4つ揃いませんでした。`);
       }
+      continue;
+    }
+
+    // マーカーなし：項目名の直後から「評価方法」行または次の項目名行までを集める
+    const collected = [];
+    while (i < lines.length) {
+      const l = lines[i];
+      if (isEvaluationMethodLine(l)) {
+        i++;
+        break;
+      }
+      const nextCode = l.match(/^【([^】]+)】(.*)$/);
+      if (nextCode && !nextCode[1].match(/^[SABC]$/)) break;
+      collected.push(l);
+      i++;
+    }
+
+    let levels = null;
+    if (collected.length === 4) {
+      levels = collected;
+    } else if (collected.length === 5) {
+      // 先頭1行は「到達目標」の総括説明とみなし、残り4行を S/A/B/C とする
+      levels = collected.slice(1);
+    } else if (collected.length > 5) {
+      levels = collected.slice(collected.length - 4);
+    }
+
+    if (levels && levels.every((l) => l.length > 0)) {
+      items.push({ name: itemName, levels });
+    } else {
+      errors.push(
+        `項目「${itemName}」: 4段階の説明文を特定できませんでした（${collected.length}行検出）。【S】【A】【B】【C】を付けて貼り直してください。`
+      );
     }
   }
 
-  // 最後の item を処理
-  if (pendingLevels.length > 0 && currentItem) {
-    const levelOrder = ['S', 'A', 'B', 'C'];
-    pendingLevels.forEach((text, idx) => {
-      if (idx < 4) currentItem[levelOrder[idx]] = text;
-    });
-  }
-
-  if (currentItem && currentItem.S) {
-    items.push(currentItem);
-  } else if (currentItem && (currentItem.A || currentItem.B || currentItem.C)) {
-    // 【S】がなくても他のレベルがあれば追加
-    items.push(currentItem);
+  if (items.length === 0 && errors.length === 0) {
+    errors.push(
+      `ルーブリックの項目を検出できませんでした（${lines.length}行読み込み、レベルマーカー ヘッダー${headerMarkersSeen}個/データ${dataMarkersSeen}個）。項目名の直後に【S】【A】【B】【C】の4段階が続く形式で貼り付けてください。`
+    );
   }
 
   return { items, errors };
