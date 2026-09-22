@@ -156,15 +156,18 @@ export function parseCustomRubric(text) {
     return { items: [], errors: ['ルーブリックが空です。'] };
   }
 
-  // テーブルヘッダー行をスキップ（「DP」「評価項目」などを含む行）
-  const headerIndicators = ['DP', '評価項目', '【S】', '【A】', '【B】', '【C】', '評価方法'];
+  // テーブルヘッダー行をスキップ
+  // 1. 「・」「　」が多い行（視覚的区切り）
+  // 2. 「DP」「評価項目」「評価方法」を含み、複数の【S】【A】【B】【C】がある行（テーブルヘッダー）
   let skipCount = 0;
   for (let i = 0; i < Math.min(lines.length, 3); i++) {
     const line = lines[i];
-    // ヘッダー行の特徴：複数のヘッダーキーワードを含む、または「・」「　」が多い
-    const hasMultipleHeaders = headerIndicators.filter((h) => line.includes(h)).length >= 2;
-    const hasSeparators = line.match(/・|　{2,}/);
-    if (hasMultipleHeaders || (hasSeparators && i < 2)) {
+    const isSeparatorLine = line.match(/^・[\s・]*$|^[\s・]+$/);
+    const isHeaderLine =
+      (line.includes('DP') || line.includes('評価項目') || line.includes('評価方法')) &&
+      (line.match(/【[SABC]】/g) || []).length >= 2;
+
+    if (isSeparatorLine || isHeaderLine) {
       skipCount++;
     } else {
       break;
